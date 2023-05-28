@@ -20,20 +20,24 @@ pub fn inner_product(A: &[G1Affine], B: &[G2Affine]) -> Fq12 {
 }
 
 #[allow(non_snake_case)]
-pub fn prove(A: &[G1Affine], B: &[G2Affine]) {
+pub fn prove(A: &[G1Affine], B: &[G2Affine]) -> Vec<Fq12> {
     assert_eq!(A.len(), B.len());
     let mut n = A.len();
-    let mut Z = inner_product(A, B);
+    let Z = inner_product(A, B);
     let mut A = A.to_vec();
     let mut B = B.to_vec();
     let mut transcript = Transcript::new();
+    let mut proof: Vec<Fq12> = Vec::new();
 
-    // send Z, A, B to the verifier
-    transcript.append_fq12(Z);
+    // register A and B
     A.iter().zip(B.iter()).for_each(|(a, b)| {
         transcript.append_g1(*a);
         transcript.append_g2(*b);
     });
+
+    // send Z
+    proof.push(Z);
+    transcript.append_fq12(Z);
 
     while n > 1 {
         let (A1, A2) = A.split_at(n / 2);
@@ -42,7 +46,9 @@ pub fn prove(A: &[G1Affine], B: &[G2Affine]) {
         let Z_R = inner_product(A1, B2);
 
         // send Z_L, Z_R to the verifier
+        proof.push(Z_L);
         transcript.append_fq12(Z_L);
+        proof.push(Z_R);
         transcript.append_fq12(Z_R);
 
         let x = transcript.get_challenge();
@@ -51,16 +57,20 @@ pub fn prove(A: &[G1Affine], B: &[G2Affine]) {
         let new_A = A1
             .iter()
             .zip(A2.iter())
-            .map(|(&a1, &a2)| a1 + a2.mul(x))
+            .map(|(&a1, &a2)| (a1 + a2.mul(x)).into())
             .collect_vec();
         let new_B = B1
             .iter()
             .zip(B2.iter())
-            .map(|(&b1, &b2)| b1 + b2.mul(inv_x))
+            .map(|(&b1, &b2)| (b1 + b2.mul(inv_x)).into())
             .collect_vec();
-        todo!();
+
+        // update
+        A = new_A;
+        B = new_B;
         n = n / 2;
     }
+    proof
 }
 
 #[cfg(test)]
