@@ -4,6 +4,7 @@ use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
 use ark_ec::pairing::Pairing;
 use ark_ff::Field;
 use itertools::Itertools;
+use num_bigint::BigUint;
 use std::ops::Mul;
 
 #[allow(non_snake_case)]
@@ -48,7 +49,9 @@ pub fn verify(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<()> {
             .map(|(&b1, &b2)| (b1 + b2.mul(inv_x)).into())
             .collect_vec();
 
-        let new_Z = Z_L.pow(&x.0) * Z * Z_R.pow(&inv_x.0);
+        let x: BigUint = x.into();
+        let inv_x: BigUint = inv_x.into();
+        let new_Z = Z_L.pow(&x.to_u64_digits()) * Z * Z_R.pow(&inv_x.to_u64_digits());
 
         // update
         A = new_A;
@@ -64,5 +67,26 @@ pub fn verify(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<()> {
         Ok(())
     } else {
         Err(anyhow::anyhow!("Verification failed"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::prover::prove;
+
+    use super::*;
+    use ark_bn254::{G1Affine, G2Affine};
+    use ark_std::UniformRand;
+    use itertools::Itertools;
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_sipp() {
+        let rng = &mut ark_std::test_rng();
+        let n = 64;
+        let A = (0..n).map(|_| G1Affine::rand(rng)).collect_vec();
+        let B = (0..n).map(|_| G2Affine::rand(rng)).collect_vec();
+        let proof = prove(&A, &B);
+        assert!(verify(&A, &B, &proof).is_ok());
     }
 }

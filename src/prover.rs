@@ -1,6 +1,6 @@
 use std::ops::Mul;
 
-use ark_bn254::{Bn254, Fq12, Fr, G1Affine, G2Affine};
+use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
 use ark_ec::pairing::Pairing;
 use ark_ff::fields::Field;
 use itertools::Itertools;
