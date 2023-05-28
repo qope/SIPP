@@ -70,6 +70,9 @@ pub fn prove(A: &[G1Affine], B: &[G2Affine]) -> Vec<Fq12> {
         B = new_B;
         n = n / 2;
     }
+
+    // reverse the message because the verifier reads the message in reverse order
+    proof.reverse();
     proof
 }
 
