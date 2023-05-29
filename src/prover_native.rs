@@ -5,8 +5,11 @@ use ark_ec::pairing::Pairing;
 use ark_ff::fields::Field;
 use itertools::Itertools;
 use num_traits::One;
+use plonky2::field::goldilocks_field::GoldilocksField;
 
-use crate::transcript::Transcript;
+use crate::transcript_native::Transcript;
+
+type F = GoldilocksField;
 
 #[allow(non_snake_case)]
 pub fn inner_product(A: &[G1Affine], B: &[G2Affine]) -> Fq12 {
@@ -26,7 +29,7 @@ pub fn prove(A: &[G1Affine], B: &[G2Affine]) -> Vec<Fq12> {
     let Z = inner_product(A, B);
     let mut A = A.to_vec();
     let mut B = B.to_vec();
-    let mut transcript = Transcript::new();
+    let mut transcript = Transcript::<F>::new();
     let mut proof: Vec<Fq12> = Vec::new();
 
     // register A and B
