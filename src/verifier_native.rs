@@ -1,18 +1,21 @@
-use crate::transcript::Transcript;
+use crate::transcript_native::Transcript;
 use anyhow::Result;
 use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
 use ark_ec::pairing::Pairing;
 use ark_ff::Field;
 use itertools::Itertools;
 use num_bigint::BigUint;
+use plonky2::field::goldilocks_field::GoldilocksField;
 use std::ops::Mul;
+
+type F = GoldilocksField;
 
 #[allow(non_snake_case)]
 pub fn verify(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<()> {
     let mut n = A.len();
     let mut A = A.to_vec();
     let mut B = B.to_vec();
-    let mut transcript = Transcript::new();
+    let mut transcript = Transcript::<F>::new();
     let mut proof = proof.to_vec();
 
     // register A and B
@@ -72,7 +75,7 @@ pub fn verify(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::prover::prove;
+    use crate::prover_native::prove;
 
     use super::*;
     use ark_bn254::{G1Affine, G2Affine};
