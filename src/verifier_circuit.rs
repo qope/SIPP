@@ -14,22 +14,22 @@ use crate::{transcript_circuit::TranscriptCircuit, transcript_native::Transcript
 
 #[allow(non_snake_case)]
 pub struct SMG1Statement<F: RichField + Extendable<D>, const D: usize> {
-    G: G1Target<F, D>,
-    s: FrTarget<F, D>,
-    sG: G1Target<F, D>,
+    pub G: G1Target<F, D>,
+    pub s: FrTarget<F, D>,
+    pub sG: G1Target<F, D>,
 }
 
 #[allow(non_snake_case)]
 pub struct SMG2Statement<F: RichField + Extendable<D>, const D: usize> {
-    G: G2Target<F, D>,
-    s: FrTarget<F, D>,
-    sG: G2Target<F, D>,
+    pub G: G2Target<F, D>,
+    pub s: FrTarget<F, D>,
+    pub sG: G2Target<F, D>,
 }
 
 pub struct ExpFq12Statement<F: RichField + Extendable<D>, const D: usize> {
-    p: Fq12Target<F, D>,
-    x: FrTarget<F, D>,
-    px: Fq12Target<F, D>,
+    pub p: Fq12Target<F, D>,
+    pub x: FrTarget<F, D>,
+    pub px: Fq12Target<F, D>,
 }
 
 #[allow(non_snake_case)]
@@ -229,10 +229,13 @@ mod tests {
             .iter()
             .map(|x| Fq12Target::<F, D>::constant(&mut builder, x.clone()))
             .collect_vec();
-        verify_circuit(&mut builder, &A_t, &B_t, &proof_t, &A, &B, &proof);
+        let output = verify_circuit(&mut builder, &A_t, &B_t, &proof_t, &A, &B, &proof);
+        println!("num of SMG1Statement: {}", output.smg1.len());
+        println!("num of SMG2Statement: {}", output.smg2.len());
+        println!("num of ExpFq12Statement: {}", output.expf12.len());
 
         let pw = PartialWitness::new();
-        let data = builder.build::<PoseidonGoldilocksConfig>();
+        let data = builder.build::<C>();
         let _proof = data.prove(pw);
         dbg!(data.common.degree_bits());
     }

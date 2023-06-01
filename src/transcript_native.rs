@@ -1,5 +1,4 @@
 use ark_bn254::{Fq, Fq12, Fr, G1Affine, G2Affine};
-use ark_ff::{BigInt, BigInteger};
 use itertools::Itertools;
 use num_bigint::BigUint;
 use plonky2::{
