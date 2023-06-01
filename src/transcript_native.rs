@@ -1,4 +1,5 @@
 use ark_bn254::{Fq, Fq12, Fr, G1Affine, G2Affine};
+use ark_ff::{BigInt, BigInteger};
 use itertools::Itertools;
 use num_bigint::BigUint;
 use plonky2::{
@@ -9,10 +10,10 @@ use plonky2::{
         poseidon::PoseidonPermutation,
     },
 };
-use plonky2_bn254_pairing::fields::bn254base::Bn254Base;
+use plonky2_bn254_pairing::fields::{bn254base::Bn254Base, native::MyFq12};
 
 pub struct Transcript<F: RichField> {
-    state: HashOut<F>,
+    pub state: HashOut<F>,
 }
 
 impl<F: RichField> Transcript<F> {
@@ -30,20 +31,18 @@ impl<F: RichField> Transcript<F> {
     }
 
     pub fn append_fq12(&mut self, x: Fq12) {
-        let fq_vec = vec![
-            x.c0.c0.c0, x.c0.c0.c1, x.c0.c1.c0, x.c0.c1.c1, x.c0.c2.c0, x.c0.c2.c1, x.c1.c0.c0,
-            x.c1.c0.c1, x.c1.c1.c0, x.c1.c1.c1, x.c1.c2.c0, x.c1.c2.c1,
-        ];
-        let f_vec = fq_vec
+        let my_fq12: MyFq12 = x.into();
+        let f_vec = my_fq12
+            .coeffs
             .iter()
             .flat_map(|&x| from_fq_to_f::<F>(x))
             .collect_vec();
         self.append(&f_vec);
     }
 
-    pub fn append_g1(&mut self, x: G1Affine) {
-        let x_f = from_fq_to_f::<F>(x.x);
-        let y_f = from_fq_to_f::<F>(x.y);
+    pub fn append_g1(&mut self, p: G1Affine) {
+        let x_f = from_fq_to_f::<F>(p.x);
+        let y_f = from_fq_to_f::<F>(p.y);
         self.append(&[x_f, y_f].concat());
     }
 
