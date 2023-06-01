@@ -12,6 +12,8 @@ use plonky2_bn254_pairing::{
 
 use crate::{transcript_circuit::TranscriptCircuit, transcript_native::Transcript};
 
+// statement that sG = s * G
+// Generally this is heavry computation, so we outsource to other circuits
 #[allow(non_snake_case)]
 pub struct SMG1Statement<F: RichField + Extendable<D>, const D: usize> {
     pub G: G1Target<F, D>,
@@ -26,6 +28,7 @@ pub struct SMG2Statement<F: RichField + Extendable<D>, const D: usize> {
     pub sG: G2Target<F, D>,
 }
 
+// statement that px = p^x
 pub struct ExpFq12Statement<F: RichField + Extendable<D>, const D: usize> {
     pub p: Fq12Target<F, D>,
     pub x: FrTarget<F, D>,
@@ -183,8 +186,6 @@ pub fn verify_circuit<F: RichField + Extendable<D>, const D: usize>(
         expf12,
     }
 }
-
-// statementを作りたい。例えば、a.mul(x)が現れる度に、a.mul(x)の値を直接設定する代わりに、(a, x, a.mul(x))のタプルを公開入力に加える。
 
 #[cfg(test)]
 mod tests {
