@@ -1,4 +1,4 @@
-use ark_bn254::{Fq12, G1Affine, G2Affine};
+use ark_bn254::{Fq12, Fr, G1Affine, G2Affine};
 use ark_ff::Field;
 use num_bigint::BigUint;
 use plonky2::{
@@ -12,37 +12,60 @@ use plonky2_bn254_pairing::{
 
 use crate::{transcript_circuit::TranscriptCircuit, transcript_native::Transcript};
 
-// statement that sG = s * G
-// Generally this is heavry computation, so we outsource to other circuits
-#[allow(non_snake_case)]
-pub struct SMG1Statement<F: RichField + Extendable<D>, const D: usize> {
-    pub G: G1Target<F, D>,
-    pub s: FrTarget<F, D>,
-    pub sG: G1Target<F, D>,
-}
-
-#[allow(non_snake_case)]
-pub struct SMG2Statement<F: RichField + Extendable<D>, const D: usize> {
-    pub G: G2Target<F, D>,
-    pub s: FrTarget<F, D>,
-    pub sG: G2Target<F, D>,
-}
-
-// statement that px = p^x
-pub struct ExpFq12Statement<F: RichField + Extendable<D>, const D: usize> {
-    pub p: Fq12Target<F, D>,
+pub struct G1ExpStatement<F: RichField + Extendable<D>, const D: usize> {
+    pub p: G1Target<F, D>,
+    pub p_x: G1Target<F, D>,
     pub x: FrTarget<F, D>,
-    pub px: Fq12Target<F, D>,
+}
+
+pub struct G2ExpStatement<F: RichField + Extendable<D>, const D: usize> {
+    pub p: G2Target<F, D>,
+    pub p_x: G2Target<F, D>,
+    pub x: FrTarget<F, D>,
+}
+
+pub struct Fq12ExpStatement<F: RichField + Extendable<D>, const D: usize> {
+    pub p: Fq12Target<F, D>,
+    pub p_x: Fq12Target<F, D>,
+    pub x: FrTarget<F, D>,
+}
+
+pub struct G1ExpWitness {
+    pub p: G1Affine,
+    pub p_x: G1Affine,
+    pub x: Fr,
+}
+
+pub struct G2ExpWitness {
+    pub p: G2Affine,
+    pub p_x: G2Affine,
+    pub x: Fr,
+}
+
+pub struct Fq12ExpWitness {
+    pub p: Fq12,
+    pub p_x: Fq12,
+    pub x: Fr,
 }
 
 #[allow(non_snake_case)]
-pub struct VerifyCircuitOutput<F: RichField + Extendable<D>, const D: usize> {
+pub struct VerifyCircuitOutputTarget<F: RichField + Extendable<D>, const D: usize> {
     pub A: G1Target<F, D>,
     pub B: G2Target<F, D>,
     pub Z: Fq12Target<F, D>,
-    pub smg1: Vec<SMG1Statement<F, D>>,
-    pub smg2: Vec<SMG2Statement<F, D>>,
-    pub expf12: Vec<ExpFq12Statement<F, D>>,
+    pub g1exp: Vec<G1ExpStatement<F, D>>,
+    pub g2exp: Vec<G2ExpStatement<F, D>>,
+    pub fq12exp: Vec<Fq12ExpStatement<F, D>>,
+}
+
+#[allow(non_snake_case)]
+pub struct VerifyCircuitOutputWitness {
+    pub A: G1Affine,
+    pub B: G2Affine,
+    pub Z: Fq12,
+    pub g1exp: Vec<G1ExpWitness>,
+    pub g2exp: Vec<G2ExpWitness>,
+    pub fq12exp: Vec<Fq12ExpWitness>,
 }
 
 #[allow(non_snake_case)]
@@ -54,10 +77,14 @@ pub fn verify_circuit<F: RichField + Extendable<D>, const D: usize>(
     witness_A: &[G1Affine],
     witness_B: &[G2Affine],
     witness_proof: &[Fq12],
-) -> VerifyCircuitOutput<F, D> {
-    let mut smg1: Vec<SMG1Statement<F, D>> = vec![];
-    let mut smg2: Vec<SMG2Statement<F, D>> = vec![];
-    let mut expf12: Vec<ExpFq12Statement<F, D>> = vec![];
+) -> (VerifyCircuitOutputTarget<F, D>, VerifyCircuitOutputWitness) {
+    let mut g1exp_t: Vec<G1ExpStatement<F, D>> = vec![];
+    let mut g2exp_t: Vec<G2ExpStatement<F, D>> = vec![];
+    let mut fq12exp_t: Vec<Fq12ExpStatement<F, D>> = vec![];
+
+    let mut g1exp_w: Vec<G1ExpWitness> = vec![];
+    let mut g2exp_w: Vec<G2ExpWitness> = vec![];
+    let mut fq12exp_w: Vec<Fq12ExpWitness> = vec![];
 
     let mut n = A_t.len();
     let mut A_t = A_t.to_vec();
@@ -124,19 +151,29 @@ pub fn verify_circuit<F: RichField + Extendable<D>, const D: usize>(
 
             let x_a2: G1Affine = (a2 * x).into();
             let x_a2_t = G1Target::constant(builder, x_a2);
-            smg1.push(SMG1Statement {
-                G: a2_t,
-                s: x_t.clone(),
-                sG: x_a2_t.clone(),
+            g1exp_t.push(G1ExpStatement {
+                p: a2_t,
+                x: x_t.clone(),
+                p_x: x_a2_t.clone(),
+            });
+            g1exp_w.push(G1ExpWitness {
+                p: a2,
+                x,
+                p_x: x_a2,
             });
             new_A_t.push(a1_t.add(builder, &x_a2_t));
 
             let inv_x_b2: G2Affine = (b2 * inv_x).into();
             let inv_x_b2_t = G2Target::constant(builder, inv_x_b2);
-            smg2.push(SMG2Statement {
-                G: b2_t,
-                s: inv_x_t.clone(),
-                sG: inv_x_b2_t.clone(),
+            g2exp_t.push(G2ExpStatement {
+                p: b2_t,
+                x: inv_x_t.clone(),
+                p_x: inv_x_b2_t.clone(),
+            });
+            g2exp_w.push(G2ExpWitness {
+                p: b2,
+                x: inv_x,
+                p_x: inv_x_b2,
             });
             new_B_t.push(b1_t.add(builder, &inv_x_b2_t));
 
@@ -144,23 +181,33 @@ pub fn verify_circuit<F: RichField + Extendable<D>, const D: usize>(
             new_B.push((b1 + inv_x_b2).into());
         }
 
-        let x: BigUint = x.into();
-        let inv_x: BigUint = inv_x.into();
-        let Z_L_x = Z_L.pow(&x.to_u64_digits());
-        let Z_R_inv_x = Z_R.pow(&inv_x.to_u64_digits());
+        let x_biguint: BigUint = x.into();
+        let inv_x_biguint: BigUint = inv_x.into();
+        let Z_L_x = Z_L.pow(&x_biguint.to_u64_digits());
+        let Z_R_inv_x = Z_R.pow(&inv_x_biguint.to_u64_digits());
 
         let Z_L_x_t = Fq12Target::constant(builder, Z_L_x);
-        expf12.push(ExpFq12Statement {
+        fq12exp_t.push(Fq12ExpStatement {
             p: Z_L_t,
             x: x_t,
-            px: Z_L_x_t.clone(),
+            p_x: Z_L_x_t.clone(),
+        });
+        fq12exp_w.push(Fq12ExpWitness {
+            p: Z_L,
+            x,
+            p_x: Z_L_x,
         });
 
         let Z_R_inv_x_t = Fq12Target::constant(builder, Z_R_inv_x);
-        expf12.push(ExpFq12Statement {
+        fq12exp_t.push(Fq12ExpStatement {
             p: Z_R_t,
             x: inv_x_t,
-            px: Z_R_inv_x_t.clone(),
+            p_x: Z_R_inv_x_t.clone(),
+        });
+        fq12exp_w.push(Fq12ExpWitness {
+            p: Z_R,
+            x: inv_x,
+            p_x: Z_R_inv_x,
         });
 
         let new_Z_t = Z_L_x_t.mul(builder, &Z_t).mul(builder, &Z_R_inv_x_t);
@@ -177,14 +224,24 @@ pub fn verify_circuit<F: RichField + Extendable<D>, const D: usize>(
         n = n / 2;
     }
 
-    VerifyCircuitOutput {
+    let t = VerifyCircuitOutputTarget {
         A: A_t[0].clone(),
         B: B_t[0].clone(),
         Z: Z_t,
-        smg1,
-        smg2,
-        expf12,
-    }
+        g1exp: g1exp_t,
+        g2exp: g2exp_t,
+        fq12exp: fq12exp_t,
+    };
+    let w = VerifyCircuitOutputWitness {
+        A: A[0],
+        B: B[0],
+        Z,
+        g1exp: g1exp_w,
+        g2exp: g2exp_w,
+        fq12exp: fq12exp_w,
+    };
+
+    (t, w)
 }
 
 #[cfg(test)]
@@ -209,7 +266,7 @@ mod tests {
     #[allow(non_snake_case)]
     fn test_sipp_circuit() {
         let rng = &mut ark_std::test_rng();
-        let n = 64;
+        let n = 1 << 6;
         let A = (0..n).map(|_| G1Affine::rand(rng)).collect_vec();
         let B = (0..n).map(|_| G2Affine::rand(rng)).collect_vec();
         let proof = prove(&A, &B);
@@ -230,10 +287,10 @@ mod tests {
             .iter()
             .map(|x| Fq12Target::<F, D>::constant(&mut builder, x.clone()))
             .collect_vec();
-        let output = verify_circuit(&mut builder, &A_t, &B_t, &proof_t, &A, &B, &proof);
-        println!("num of SMG1Statement: {}", output.smg1.len());
-        println!("num of SMG2Statement: {}", output.smg2.len());
-        println!("num of ExpFq12Statement: {}", output.expf12.len());
+        let (_t, w) = verify_circuit(&mut builder, &A_t, &B_t, &proof_t, &A, &B, &proof);
+        println!("num of G1ExpStatement: {}", w.g1exp.len());
+        println!("num of G2ExpStatement: {}", w.g2exp.len());
+        println!("num of Fq12ExpStatement: {}", w.fq12exp.len());
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
