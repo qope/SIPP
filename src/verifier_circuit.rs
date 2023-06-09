@@ -133,7 +133,7 @@ impl<F: RichField + Extendable<D>, const D: usize>
         let num_final_b_limbs = num_g2_limbs;
         let num_z_limbs = num_fq12_limbs;
         let num_g1exp_limbs = (n - 1) * num_g1_statement_limbs;
-        let num_g2exp_limbs = (n - 1) * num_g1_statement_limbs;
+        let num_g2exp_limbs = (n - 1) * num_g2_statement_limbs;
         let num_fq12exp_limbs = 2 * LOG_N * num_fq12_statement_limbs;
 
         let mut input = input.to_vec();
@@ -145,6 +145,8 @@ impl<F: RichField + Extendable<D>, const D: usize>
         let g1exp_raw = input.drain(0..num_g1exp_limbs).collect_vec();
         let g2exp_raw = input.drain(0..num_g2exp_limbs).collect_vec();
         let fq12exp_raw = input.drain(0..num_fq12exp_limbs).collect_vec();
+
+        assert_eq!(input.len(), 0);
 
         let A = a_raw
             .chunks_exact(num_g1_limbs)
