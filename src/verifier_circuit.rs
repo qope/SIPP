@@ -687,31 +687,31 @@ mod tests {
 
         let (sipp_data, sipp_t) = build_verifier_circuit::<F, C, D>();
         let dt = build_statementdata_and_target::<F, C, D>();
-        // let (data, proof_targets) = build_wrapper_circuit(&sipp_data, &dt);
+        let (data, proof_targets) = build_wrapper_circuit(&sipp_data, &dt);
 
-        // // proof witness generation
-        // let proofs = generate_witness_proofs(&dt, &witness);
-        // let sipp_proof = generate_verifier_proof(&sipp_data, &sipp_t, &witness);
+        // proof witness generation
+        let proofs = generate_witness_proofs(&dt, &witness);
+        let sipp_proof = generate_verifier_proof(&sipp_data, &sipp_t, &witness);
 
-        // // set witness
-        // let mut pw = PartialWitness::<F>::new();
-        // pw.set_proof_with_pis_target(&proof_targets.sipp_proof_target, &sipp_proof);
-        // proof_targets
-        //     .g1exp_proof_targets
-        //     .iter()
-        //     .zip(proofs.g1exp_proofs.iter())
-        //     .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
-        // proof_targets
-        //     .g2exp_proof_targets
-        //     .iter()
-        //     .zip(proofs.g2exp_proofs.iter())
-        //     .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
-        // proof_targets
-        //     .fq12exp_proof_targets
-        //     .iter()
-        //     .zip(proofs.fq12exp_proofs.iter())
-        //     .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        // set witness
+        let mut pw = PartialWitness::<F>::new();
+        pw.set_proof_with_pis_target(&proof_targets.sipp_proof_target, &sipp_proof);
+        proof_targets
+            .g1exp_proof_targets
+            .iter()
+            .zip(proofs.g1exp_proofs.iter())
+            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        proof_targets
+            .g2exp_proof_targets
+            .iter()
+            .zip(proofs.g2exp_proofs.iter())
+            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        proof_targets
+            .fq12exp_proof_targets
+            .iter()
+            .zip(proofs.fq12exp_proofs.iter())
+            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
 
-        // let _wrap_proof = data.prove(pw).unwrap();
+        let _wrap_proof = data.prove(pw).unwrap();
     }
 }
