@@ -433,6 +433,7 @@ pub fn generate_witness_proofs<
 where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
 {
+    println!("Start: g1exp_proofs");
     let g1exp_proofs: Vec<_> = witness
         .g1exp
         .par_iter()
@@ -446,6 +447,7 @@ where
             proof.unwrap()
         })
         .collect();
+    println!("Start: g2exp_proofs");
     let g2exp_proofs: Vec<_> = witness
         .g2exp
         .iter()
@@ -470,6 +472,7 @@ where
             proof
         })
         .collect();
+    println!("Start: fq12exp_proofs");
     let fq12exp_proofs: Vec<_> = witness
         .fq12exp
         .iter()
@@ -610,6 +613,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use crate::{
         prover_native::prove, verifier_native::verify, verifier_witness::generate_verifier_witness,
     };
@@ -664,11 +669,34 @@ mod tests {
 
         let verifier_target = builder.constant_verifier_data(&data.verifier_only);
         let proof_t = builder.add_virtual_proof_with_pis(&data.common);
-        let _verifier = VerifierCircuitTarget::from_vec(&mut builder, &proof_t.public_inputs);
+        let verifier_pi = VerifierCircuitTarget::from_vec(&mut builder, &proof_t.public_inputs);
         builder.verify_proof::<C>(&proof_t, &verifier_target, &data.common);
 
         let mut pw = PartialWitness::<F>::new();
         pw.set_proof_with_pis_target(&proof_t, &proof);
+
+        // set witness to verifier_pi for test purpose
+        verifier_pi
+            .g1exp
+            .iter()
+            .zip(witness.g1exp.iter())
+            .for_each(|(t, w)| {
+                t.set_witness(&mut pw, w);
+            });
+        verifier_pi
+            .g2exp
+            .iter()
+            .zip(witness.g2exp.iter())
+            .for_each(|(t, w)| {
+                t.set_witness(&mut pw, w);
+            });
+        verifier_pi
+            .fq12exp
+            .iter()
+            .zip(witness.fq12exp.iter())
+            .for_each(|(t, w)| {
+                t.set_witness(&mut pw, w);
+            });
 
         let data = builder.build::<C>();
         let _proof = data.prove(pw).unwrap();
@@ -685,13 +713,19 @@ mod tests {
         let witness = generate_verifier_witness::<F>(&A, &B, &sipp_proof);
         assert!(verify(&A, &B, &sipp_proof).is_ok());
 
+        let now = Instant::now();
+        println!("Start: cirucit build");
         let (sipp_data, sipp_t) = build_verifier_circuit::<F, C, D>();
         let dt = build_statementdata_and_target::<F, C, D>();
         let (data, proof_targets) = build_wrapper_circuit(&sipp_data, &dt);
+        println!("End: circuit build. {} s", now.elapsed().as_secs());
 
         // proof witness generation
+        let now = Instant::now();
+        println!("Start: proof generation");
         let proofs = generate_witness_proofs(&dt, &witness);
         let sipp_proof = generate_verifier_proof(&sipp_data, &sipp_t, &witness);
+        println!("End: proof generation. {} s", now.elapsed().as_secs());
 
         // set witness
         let mut pw = PartialWitness::<F>::new();
@@ -712,6 +746,9 @@ mod tests {
             .zip(proofs.fq12exp_proofs.iter())
             .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
 
+        let now = Instant::now();
+        println!("Start: wrap proof");
         let _wrap_proof = data.prove(pw).unwrap();
+        println!("End: wrap proof. {} s", now.elapsed().as_secs());
     }
 }
