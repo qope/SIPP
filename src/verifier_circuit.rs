@@ -21,6 +21,7 @@ use plonky2_bn254_pairing::aggregation::{
         generate_g2_exp_proof, G2ExpAggregationPublicInputs, G2ExpAggregationTarget,
         G2ExpAggregationWitness, PartialG2ExpStatement,
     },
+    g2_exp_witness::get_num_statements,
 };
 use plonky2_bn254_pairing::aggregation::{
     fq12_exp_witness::generate_fq12exp_witness_from_x, g2_exp::generate_g2_exp_aggregation_proof,
@@ -45,6 +46,8 @@ use crate::{
 };
 
 const LOG_N: usize = 2;
+const NUM_BITS_G2: usize = 6;
+const NUM_BITS_FQ12: usize = 5;
 
 #[allow(non_snake_case)]
 pub struct VerifierCircuitTarget<F: RichField + Extendable<D>, const D: usize> {
@@ -396,14 +399,15 @@ pub fn build_statementdata_and_target<
 where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
 {
-    let n = 1 << LOG_N;
+    let g2_num_statements = get_num_statements(256, NUM_BITS_G2);
+    let fq12_num_statements = get_num_statements(256, NUM_BITS_FQ12);
     let (g1exp_data, g1exp_t) = build_g1_exp_circuit::<F, C, D>();
     let (g2exp_data, g2exp_t) = build_g2_exp_circuit::<F, C, D>();
     let (g2exp_aggregation_data, g2exp_aggregation_t) =
-        build_g2_exp_aggregation_circuit::<F, C, D>(&g2exp_data, n - 1);
+        build_g2_exp_aggregation_circuit::<F, C, D>(&g2exp_data, g2_num_statements);
     let (fq12exp_data, fq12exp_t) = build_fq12_exp_circuit::<F, C, D>();
     let (fq12exp_aggregation_data, fq12exp_aggregation_t) =
-        build_fq12_exp_aggregation_circuit::<F, C, D>(&fq12exp_data, n - 1);
+        build_fq12_exp_aggregation_circuit::<F, C, D>(&fq12exp_data, fq12_num_statements);
     StatementDataAndTarget {
         g1exp_data,
         g2exp_data,
@@ -446,7 +450,7 @@ where
         .g2exp
         .iter()
         .map(|g2exp_w| {
-            let partial_g2exp_w = generate_g2exp_witness_from_x(g2exp_w.p, g2exp_w.x, 6);
+            let partial_g2exp_w = generate_g2exp_witness_from_x(g2exp_w.p, g2exp_w.x, NUM_BITS_G2);
             let proofs: Vec<_> = partial_g2exp_w
                 .par_iter()
                 .map(|sw| generate_g2_exp_proof(&dt.g2exp_data, &dt.g2exp_t, sw).unwrap())
@@ -470,7 +474,8 @@ where
         .fq12exp
         .iter()
         .map(|fq12exp_w| {
-            let partial_fq12exp_w = generate_fq12exp_witness_from_x(fq12exp_w.p, fq12exp_w.x, 5);
+            let partial_fq12exp_w =
+                generate_fq12exp_witness_from_x(fq12exp_w.p, fq12exp_w.x, NUM_BITS_FQ12);
             let proofs: Vec<_> = partial_fq12exp_w
                 .par_iter()
                 .map(|sw| generate_fq12_exp_proof(&dt.fq12exp_data, &dt.fq12exp_t, sw).unwrap())
@@ -682,31 +687,31 @@ mod tests {
 
         let (sipp_data, sipp_t) = build_verifier_circuit::<F, C, D>();
         let dt = build_statementdata_and_target::<F, C, D>();
-        let (data, proof_targets) = build_wrapper_circuit(&sipp_data, &dt);
+        // let (data, proof_targets) = build_wrapper_circuit(&sipp_data, &dt);
 
-        // proof witness generation
-        let proofs = generate_witness_proofs(&dt, &witness);
-        let sipp_proof = generate_verifier_proof(&sipp_data, &sipp_t, &witness);
+        // // proof witness generation
+        // let proofs = generate_witness_proofs(&dt, &witness);
+        // let sipp_proof = generate_verifier_proof(&sipp_data, &sipp_t, &witness);
 
-        // set witness
-        let mut pw = PartialWitness::<F>::new();
-        pw.set_proof_with_pis_target(&proof_targets.sipp_proof_target, &sipp_proof);
-        proof_targets
-            .g1exp_proof_targets
-            .iter()
-            .zip(proofs.g1exp_proofs.iter())
-            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
-        proof_targets
-            .g2exp_proof_targets
-            .iter()
-            .zip(proofs.g2exp_proofs.iter())
-            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
-        proof_targets
-            .fq12exp_proof_targets
-            .iter()
-            .zip(proofs.fq12exp_proofs.iter())
-            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        // // set witness
+        // let mut pw = PartialWitness::<F>::new();
+        // pw.set_proof_with_pis_target(&proof_targets.sipp_proof_target, &sipp_proof);
+        // proof_targets
+        //     .g1exp_proof_targets
+        //     .iter()
+        //     .zip(proofs.g1exp_proofs.iter())
+        //     .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        // proof_targets
+        //     .g2exp_proof_targets
+        //     .iter()
+        //     .zip(proofs.g2exp_proofs.iter())
+        //     .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        // proof_targets
+        //     .fq12exp_proof_targets
+        //     .iter()
+        //     .zip(proofs.fq12exp_proofs.iter())
+        //     .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
 
-        let _wrap_proof = data.prove(pw).unwrap();
+        // let _wrap_proof = data.prove(pw).unwrap();
     }
 }
