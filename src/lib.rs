@@ -1,4 +1,5 @@
 pub mod prover_native;
+pub mod statements;
 pub mod transcript_circuit;
 pub mod transcript_native;
 pub mod verifier_circuit;

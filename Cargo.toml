@@ -18,7 +18,8 @@ serde = { version = "1.0.160", features = ["derive"] }
 itertools = "0.10.5"
 anyhow = "1.0.71"
 hex = "0.4.3"
-plonky2-bn254-pairing={git="http://github.com/qope/plonky2-bn254-pairing", branch = "develop"}
+plonky2-bn254-pairing={git="http://github.com/qope/plonky2-bn254-pairing", rev="d87dda4"}
 plonky2_ecdsa={git="https://github.com/qope/plonky2-ecdsa.git"}
 plonky2 = "0.1.2"
 plonky2_u32="0.1.0"
+rayon = "1.7.0"

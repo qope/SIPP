@@ -24,10 +24,14 @@ pub struct Fq12ExpWitness {
 }
 
 #[allow(non_snake_case)]
-pub struct VerifyCircuitOutputWitness {
-    pub A: G1Affine,
-    pub B: G2Affine,
+pub struct VerifierCircuitWitness {
+    pub n: usize,
+    pub A: Vec<G1Affine>,
+    pub B: Vec<G2Affine>,
+    pub final_A: G1Affine,
+    pub final_B: G2Affine,
     pub Z: Fq12,
+    pub proof: Vec<Fq12>,
     pub g1exp: Vec<G1ExpWitness>,
     pub g2exp: Vec<G2ExpWitness>,
     pub fq12exp: Vec<Fq12ExpWitness>,
@@ -38,16 +42,21 @@ pub fn generate_verifier_witness<F: RichField>(
     A: &[G1Affine],
     B: &[G2Affine],
     proof: &[Fq12],
-) -> VerifyCircuitOutputWitness {
+) -> VerifierCircuitWitness {
     let mut g1exp_w: Vec<G1ExpWitness> = vec![];
     let mut g2exp_w: Vec<G2ExpWitness> = vec![];
     let mut fq12exp_w: Vec<Fq12ExpWitness> = vec![];
 
-    let mut n = A.len();
-    let mut A = A.to_vec();
-    let mut B = B.to_vec();
+    let original_n = A.len();
+    let original_A = A.to_vec();
+    let original_B = B.to_vec();
+    let original_proof = proof.to_vec();
+
+    let mut n = original_n;
+    let mut A = original_A.clone();
+    let mut B = original_B.to_vec();
     let mut transcript = Transcript::<F>::new();
-    let mut proof = proof.to_vec();
+    let mut proof = original_proof.clone();
 
     // register A and B
     A.iter().zip(B.iter()).for_each(|(a, b)| {
@@ -125,10 +134,14 @@ pub fn generate_verifier_witness<F: RichField>(
         n = n / 2;
     }
 
-    VerifyCircuitOutputWitness {
-        A: A[0],
-        B: B[0],
+    VerifierCircuitWitness {
+        n: original_n,
+        A: original_A,
+        B: original_B,
+        final_A: A[0],
+        final_B: B[0],
         Z,
+        proof: original_proof,
         g1exp: g1exp_w,
         g2exp: g2exp_w,
         fq12exp: fq12exp_w,
