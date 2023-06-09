@@ -12,13 +12,14 @@ use plonky2::{
 };
 use plonky2_bn254_pairing::aggregation::{
     fq12_exp::{
-        generate_fq12_exp_aggregation_proof, generate_fq12_exp_proof, Fq12ExpAggregationTarget,
-        Fq12ExpAggregationWitness, PartialFq12ExpStatement,
+        generate_fq12_exp_aggregation_proof, generate_fq12_exp_proof,
+        Fq12ExpAggregationPublicInputs, Fq12ExpAggregationTarget, Fq12ExpAggregationWitness,
+        PartialFq12ExpStatement,
     },
     g1_exp::G1ExpTarget,
     g2_exp::{
-        generate_g2_exp_proof, G2ExpAggregationTarget, G2ExpAggregationWitness,
-        PartialG2ExpStatement,
+        generate_g2_exp_proof, G2ExpAggregationPublicInputs, G2ExpAggregationTarget,
+        G2ExpAggregationWitness, PartialG2ExpStatement,
     },
 };
 use plonky2_bn254_pairing::aggregation::{
@@ -513,14 +514,93 @@ where
     proof_t
 }
 
+pub struct ProofTargets<const D: usize> {
+    pub sipp_proof_target: ProofWithPublicInputsTarget<D>,
+    pub g1exp_proof_targets: Vec<ProofWithPublicInputsTarget<D>>,
+    pub g2exp_proof_targets: Vec<ProofWithPublicInputsTarget<D>>,
+    pub fq12exp_proof_targets: Vec<ProofWithPublicInputsTarget<D>>,
+}
+
 pub fn build_wrapper_circuit<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
->() {
-    let (sipp_data, sipp_t) = build_verifier_circuit::<F, C, D>();
+>(
+    sipp_data: &CircuitData<F, C, D>,
+    dt: &StatementDataAndTarget<F, C, D>,
+) -> (CircuitData<F, C, D>, ProofTargets<D>)
+where
+    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+{
+    let n = 1 << LOG_N;
     let config = CircuitConfig::standard_ecc_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
+
+    let sipp_proof_target = add_recursive_constraint(&mut builder, &sipp_data);
+    let g1exp_proof_targets = (0..n - 1)
+        .map(|_| add_recursive_constraint(&mut builder, &dt.g1exp_data))
+        .collect_vec();
+    let g2exp_proof_targets = (0..n - 1)
+        .map(|_| add_recursive_constraint(&mut builder, &dt.g2exp_aggregation_data))
+        .collect_vec();
+    let fq12exp_proof_targets = (0..2 * LOG_N)
+        .map(|_| add_recursive_constraint(&mut builder, &dt.fq12exp_aggregation_data))
+        .collect_vec();
+
+    // constrain public inputs
+    let verifier_circuit_pi =
+        VerifierCircuitTarget::from_vec(&mut builder, &sipp_proof_target.public_inputs);
+
+    verifier_circuit_pi
+        .g1exp
+        .iter()
+        .zip(g1exp_proof_targets.iter())
+        .for_each(|(sipp_g1exp, proof)| {
+            let pi = G1ExpTarget::from_vec(&mut builder, &proof.public_inputs);
+            G1Target::connect(&mut builder, &sipp_g1exp.p, &pi.p);
+            G1Target::connect(&mut builder, &sipp_g1exp.p_x, &pi.p_x);
+            FrTarget::connect(&mut builder, &sipp_g1exp.x, &pi.x);
+        });
+
+    verifier_circuit_pi
+        .g2exp
+        .iter()
+        .zip(g2exp_proof_targets.iter())
+        .for_each(|(sipp_g2exp, proof)| {
+            let pi = <G2ExpAggregationTarget<F, D> as RecursiveCircuitTarget<
+                F,
+                D,
+                G2ExpAggregationPublicInputs<F, D>,
+                G2ExpAggregationWitness<F, C, D>,
+            >>::from_vec(&mut builder, &proof.public_inputs);
+            G2Target::connect(&mut builder, &sipp_g2exp.p, &pi.p);
+            G2Target::connect(&mut builder, &sipp_g2exp.p_x, &pi.p_x);
+            FrTarget::connect(&mut builder, &sipp_g2exp.x, &pi.x);
+        });
+
+    verifier_circuit_pi
+        .fq12exp
+        .iter()
+        .zip(fq12exp_proof_targets.iter())
+        .for_each(|(sipp_fq12exp, proof)| {
+            let pi = <Fq12ExpAggregationTarget<F, D> as RecursiveCircuitTarget<
+                F,
+                D,
+                Fq12ExpAggregationPublicInputs<F, D>,
+                Fq12ExpAggregationWitness<F, C, D>,
+            >>::from_vec(&mut builder, &proof.public_inputs);
+            Fq12Target::connect(&mut builder, &sipp_fq12exp.p, &pi.p);
+            Fq12Target::connect(&mut builder, &sipp_fq12exp.p_x, &pi.p_x);
+            FrTarget::connect(&mut builder, &sipp_fq12exp.x, &pi.x);
+        });
+    let prooftargets = ProofTargets {
+        sipp_proof_target,
+        g1exp_proof_targets,
+        g2exp_proof_targets,
+        fq12exp_proof_targets,
+    };
+    let data = builder.build::<C>();
+    (data, prooftargets)
 }
 
 #[cfg(test)]
@@ -579,7 +659,7 @@ mod tests {
 
         let verifier_target = builder.constant_verifier_data(&data.verifier_only);
         let proof_t = builder.add_virtual_proof_with_pis(&data.common);
-        let verifier = VerifierCircuitTarget::from_vec(&mut builder, &proof_t.public_inputs);
+        let _verifier = VerifierCircuitTarget::from_vec(&mut builder, &proof_t.public_inputs);
         builder.verify_proof::<C>(&proof_t, &verifier_target, &data.common);
 
         let mut pw = PartialWitness::<F>::new();
@@ -587,5 +667,46 @@ mod tests {
 
         let data = builder.build::<C>();
         let _proof = data.prove(pw).unwrap();
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_wrap_sipp_circuit() {
+        let rng = &mut ark_std::test_rng();
+        let n = 1 << LOG_N;
+        let A = (0..n).map(|_| G1Affine::rand(rng)).collect_vec();
+        let B = (0..n).map(|_| G2Affine::rand(rng)).collect_vec();
+        let sipp_proof = prove(&A, &B);
+        let witness = generate_verifier_witness::<F>(&A, &B, &sipp_proof);
+        assert!(verify(&A, &B, &sipp_proof).is_ok());
+
+        let (sipp_data, sipp_t) = build_verifier_circuit::<F, C, D>();
+        let dt = build_statementdata_and_target::<F, C, D>();
+        let (data, proof_targets) = build_wrapper_circuit(&sipp_data, &dt);
+
+        // proof witness generation
+        let proofs = generate_witness_proofs(&dt, &witness);
+        let sipp_proof = generate_verifier_proof(&sipp_data, &sipp_t, &witness);
+
+        // set witness
+        let mut pw = PartialWitness::<F>::new();
+        pw.set_proof_with_pis_target(&proof_targets.sipp_proof_target, &sipp_proof);
+        proof_targets
+            .g1exp_proof_targets
+            .iter()
+            .zip(proofs.g1exp_proofs.iter())
+            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        proof_targets
+            .g2exp_proof_targets
+            .iter()
+            .zip(proofs.g2exp_proofs.iter())
+            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        proof_targets
+            .fq12exp_proof_targets
+            .iter()
+            .zip(proofs.fq12exp_proofs.iter())
+            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+
+        let _wrap_proof = data.prove(pw).unwrap();
     }
 }
