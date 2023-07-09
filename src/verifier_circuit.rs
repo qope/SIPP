@@ -28,7 +28,7 @@ use crate::{
     verifier_witness::VerifierCircuitWitness,
 };
 
-const LOG_N: usize = 2;
+const LOG_N: usize = 4;
 
 #[allow(non_snake_case)]
 pub struct VerifierCircuitTarget<F: RichField + Extendable<D>, const D: usize> {
@@ -397,13 +397,13 @@ pub fn generate_witness_proofs(
     println!("Start: g2exp_proofs");
     let g2exp_proofs: Vec<_> = witness
         .g2exp
-        .iter()
+        .par_iter()
         .map(|g2exp_w| generate_g2_exp_proof(g2exp_w, &dt.g2exp_data, &dt.g2exp_proof_t))
         .collect();
     println!("Start: fq12exp_proofs");
     let fq12exp_proofs: Vec<_> = witness
         .fq12exp
-        .iter()
+        .par_iter()
         .map(|fq12exp_w| generate_fq12_exp_proof(fq12exp_w, &dt.fq12exp_data, &dt.fq12exp_proof_t))
         .collect();
     StatementProofs {
