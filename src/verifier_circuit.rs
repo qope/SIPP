@@ -1,53 +1,34 @@
 use itertools::Itertools;
 use plonky2::{
-    field::extension::Extendable,
+    field::{extension::Extendable, goldilocks_field::GoldilocksField},
     hash::hash_types::RichField,
     iop::{target::Target, witness::PartialWitness},
     plonk::{
         circuit_builder::CircuitBuilder,
         circuit_data::{CircuitConfig, CircuitData},
-        config::{AlgebraicHasher, GenericConfig},
+        config::{AlgebraicHasher, GenericConfig, PoseidonGoldilocksConfig},
         proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget},
     },
 };
-use plonky2_bn254_pairing::aggregation::{
-    fq12_exp::{
-        generate_fq12_exp_aggregation_proof, generate_fq12_exp_proof,
-        Fq12ExpAggregationPublicInputs, Fq12ExpAggregationTarget, Fq12ExpAggregationWitness,
-        PartialFq12ExpStatement,
-    },
-    g1_exp::G1ExpTarget,
-    g2_exp::{
-        generate_g2_exp_proof, G2ExpAggregationPublicInputs, G2ExpAggregationTarget,
-        G2ExpAggregationWitness, PartialG2ExpStatement,
-    },
-    g2_exp_witness::get_num_statements,
-};
-use plonky2_bn254_pairing::aggregation::{
-    fq12_exp_witness::generate_fq12exp_witness_from_x, g2_exp::generate_g2_exp_aggregation_proof,
-};
 use plonky2_bn254_pairing::{
-    aggregation::{
-        fq12_exp::{build_fq12_exp_aggregation_circuit, build_fq12_exp_circuit},
-        g1_exp::{build_g1_exp_circuit, generate_g1_exp_proof, G1ExpWitness},
-        g2_exp::{build_g2_exp_aggregation_circuit, build_g2_exp_circuit},
-        g2_exp_witness::generate_g2exp_witness_from_x,
-    },
     curves::{g1curve_target::G1Target, g2curve_target::G2Target},
     fields::{fq12_target::Fq12Target, fq_target::FqTarget, fr_target::FrTarget},
     traits::recursive_circuit_target::RecursiveCircuitTarget,
 };
 use rayon::prelude::*;
+use starky_bn254::proof::StarkProofWithPublicInputsTarget;
 
 use crate::{
+    starky_prover::{
+        build_fq12_exp_circuit, build_g1_exp_circuit, build_g2_exp_circuit,
+        generate_fq12_exp_proof, generate_g1_exp_proof, generate_g2_exp_proof,
+    },
     statements::{Fq12ExpStatement, G1ExpStatement, G2ExpStatement},
     transcript_circuit::TranscriptCircuit,
     verifier_witness::VerifierCircuitWitness,
 };
 
 const LOG_N: usize = 2;
-const NUM_BITS_G2: usize = 6;
-const NUM_BITS_FQ12: usize = 5;
 
 #[allow(non_snake_case)]
 pub struct VerifierCircuitTarget<F: RichField + Extendable<D>, const D: usize> {
@@ -376,129 +357,54 @@ pub struct StatementProofs<F: RichField + Extendable<D>, C: GenericConfig<D, F =
     pub fq12exp_proofs: Vec<ProofWithPublicInputs<F, C, D>>,
 }
 
-pub struct StatementDataAndTarget<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
-> {
+pub struct DataAndTarget<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> {
     pub g1exp_data: CircuitData<F, C, D>,
     pub g2exp_data: CircuitData<F, C, D>,
-    pub g2exp_aggregation_data: CircuitData<F, C, D>,
     pub fq12exp_data: CircuitData<F, C, D>,
-    pub fq12exp_aggregation_data: CircuitData<F, C, D>,
-    pub g1exp_t: G1ExpTarget<F, D>,
-    pub g2exp_t: PartialG2ExpStatement<F, D>,
-    pub g2exp_aggregation_t: G2ExpAggregationTarget<F, D>,
-    pub fq12exp_t: PartialFq12ExpStatement<F, D>,
-    pub fq12exp_aggregation_t: Fq12ExpAggregationTarget<F, D>,
+    pub g1exp_proof_t: StarkProofWithPublicInputsTarget<D>,
+    pub g2exp_proof_t: StarkProofWithPublicInputsTarget<D>,
+    pub fq12exp_proof_t: StarkProofWithPublicInputsTarget<D>,
 }
 
-pub fn build_statementdata_and_target<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->() -> StatementDataAndTarget<F, C, D>
-where
-    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-{
-    let g2_num_statements = get_num_statements(256, NUM_BITS_G2);
-    let fq12_num_statements = get_num_statements(256, NUM_BITS_FQ12);
-    let (g1exp_data, g1exp_t) = build_g1_exp_circuit::<F, C, D>();
-    let (g2exp_data, g2exp_t) = build_g2_exp_circuit::<F, C, D>();
-    let (g2exp_aggregation_data, g2exp_aggregation_t) =
-        build_g2_exp_aggregation_circuit::<F, C, D>(&g2exp_data, g2_num_statements);
-    let (fq12exp_data, fq12exp_t) = build_fq12_exp_circuit::<F, C, D>();
-    let (fq12exp_aggregation_data, fq12exp_aggregation_t) =
-        build_fq12_exp_aggregation_circuit::<F, C, D>(&fq12exp_data, fq12_num_statements);
-    StatementDataAndTarget {
+type F = GoldilocksField;
+type C = PoseidonGoldilocksConfig;
+const D: usize = 2;
+
+pub fn build_data_and_target() -> DataAndTarget<F, C, D> {
+    let (g1exp_data, _, g1exp_proof_t) = build_g1_exp_circuit();
+    let (g2exp_data, _, g2exp_proof_t) = build_g2_exp_circuit();
+    let (fq12exp_data, _, fq12exp_proof_t) = build_fq12_exp_circuit();
+    DataAndTarget {
         g1exp_data,
         g2exp_data,
-        g2exp_aggregation_data,
         fq12exp_data,
-        fq12exp_aggregation_data,
-        g1exp_t,
-        g2exp_t,
-        g2exp_aggregation_t,
-        fq12exp_t,
-        fq12exp_aggregation_t,
+        g1exp_proof_t,
+        g2exp_proof_t,
+        fq12exp_proof_t,
     }
 }
 
-pub fn generate_witness_proofs<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
-    dt: &StatementDataAndTarget<F, C, D>,
+pub fn generate_witness_proofs(
+    dt: &DataAndTarget<F, C, D>,
     witness: &VerifierCircuitWitness,
-) -> StatementProofs<F, C, D>
-where
-    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-{
+) -> StatementProofs<F, C, D> {
     println!("Start: g1exp_proofs");
     let g1exp_proofs: Vec<_> = witness
         .g1exp
         .par_iter()
-        .map(|g1exp_w| {
-            let g1exp_w = G1ExpWitness {
-                p: g1exp_w.p,
-                p_x: g1exp_w.p_x,
-                x: g1exp_w.x,
-            };
-            let proof = generate_g1_exp_proof(&dt.g1exp_data, &dt.g1exp_t, &g1exp_w);
-            proof.unwrap()
-        })
+        .map(|g1exp_w| generate_g1_exp_proof(g1exp_w, &dt.g1exp_data, &dt.g1exp_proof_t))
         .collect();
     println!("Start: g2exp_proofs");
     let g2exp_proofs: Vec<_> = witness
         .g2exp
         .iter()
-        .map(|g2exp_w| {
-            let partial_g2exp_w = generate_g2exp_witness_from_x(g2exp_w.p, g2exp_w.x, NUM_BITS_G2);
-            let proofs: Vec<_> = partial_g2exp_w
-                .par_iter()
-                .map(|sw| generate_g2_exp_proof(&dt.g2exp_data, &dt.g2exp_t, sw).unwrap())
-                .collect();
-            let aggregation_witness = G2ExpAggregationWitness {
-                proofs,
-                p: g2exp_w.p,
-                p_x: g2exp_w.p_x,
-                x: g2exp_w.x,
-            };
-            let proof = generate_g2_exp_aggregation_proof(
-                &dt.g2exp_aggregation_data,
-                &dt.g2exp_aggregation_t,
-                &aggregation_witness,
-            )
-            .unwrap();
-            proof
-        })
+        .map(|g2exp_w| generate_g2_exp_proof(g2exp_w, &dt.g2exp_data, &dt.g2exp_proof_t))
         .collect();
     println!("Start: fq12exp_proofs");
     let fq12exp_proofs: Vec<_> = witness
         .fq12exp
         .iter()
-        .map(|fq12exp_w| {
-            let partial_fq12exp_w =
-                generate_fq12exp_witness_from_x(fq12exp_w.p, fq12exp_w.x, NUM_BITS_FQ12);
-            let proofs: Vec<_> = partial_fq12exp_w
-                .par_iter()
-                .map(|sw| generate_fq12_exp_proof(&dt.fq12exp_data, &dt.fq12exp_t, sw).unwrap())
-                .collect();
-            let aggregation_witness = Fq12ExpAggregationWitness {
-                proofs,
-                p: fq12exp_w.p,
-                p_x: fq12exp_w.p_x,
-                x: fq12exp_w.x,
-            };
-            let proof = generate_fq12_exp_aggregation_proof(
-                &dt.fq12exp_aggregation_data,
-                &dt.fq12exp_aggregation_t,
-                &aggregation_witness,
-            )
-            .unwrap();
-            proof
-        })
+        .map(|fq12exp_w| generate_fq12_exp_proof(fq12exp_w, &dt.fq12exp_data, &dt.fq12exp_proof_t))
         .collect();
     StatementProofs {
         g1exp_proofs,
@@ -531,17 +437,10 @@ pub struct ProofTargets<const D: usize> {
     pub fq12exp_proof_targets: Vec<ProofWithPublicInputsTarget<D>>,
 }
 
-pub fn build_wrapper_circuit<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub fn build_wrapper_circuit(
     sipp_data: &CircuitData<F, C, D>,
-    dt: &StatementDataAndTarget<F, C, D>,
-) -> (CircuitData<F, C, D>, ProofTargets<D>)
-where
-    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-{
+    dt: &DataAndTarget<F, C, D>,
+) -> (CircuitData<F, C, D>, ProofTargets<D>) {
     let n = 1 << LOG_N;
     let config = CircuitConfig::standard_ecc_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
@@ -551,10 +450,10 @@ where
         .map(|_| add_recursive_constraint(&mut builder, &dt.g1exp_data))
         .collect_vec();
     let g2exp_proof_targets = (0..n - 1)
-        .map(|_| add_recursive_constraint(&mut builder, &dt.g2exp_aggregation_data))
+        .map(|_| add_recursive_constraint(&mut builder, &dt.g2exp_data))
         .collect_vec();
     let fq12exp_proof_targets = (0..2 * LOG_N)
-        .map(|_| add_recursive_constraint(&mut builder, &dt.fq12exp_aggregation_data))
+        .map(|_| add_recursive_constraint(&mut builder, &dt.fq12exp_data))
         .collect_vec();
 
     // constrain public inputs
@@ -566,7 +465,7 @@ where
         .iter()
         .zip(g1exp_proof_targets.iter())
         .for_each(|(sipp_g1exp, proof)| {
-            let pi = G1ExpTarget::from_vec(&mut builder, &proof.public_inputs);
+            let pi = G1ExpStatement::from_vec(&mut builder, &proof.public_inputs);
             G1Target::connect(&mut builder, &sipp_g1exp.p, &pi.p);
             G1Target::connect(&mut builder, &sipp_g1exp.p_x, &pi.p_x);
             FrTarget::connect(&mut builder, &sipp_g1exp.x, &pi.x);
@@ -577,12 +476,7 @@ where
         .iter()
         .zip(g2exp_proof_targets.iter())
         .for_each(|(sipp_g2exp, proof)| {
-            let pi = <G2ExpAggregationTarget<F, D> as RecursiveCircuitTarget<
-                F,
-                D,
-                G2ExpAggregationPublicInputs<F, D>,
-                G2ExpAggregationWitness<F, C, D>,
-            >>::from_vec(&mut builder, &proof.public_inputs);
+            let pi = G2ExpStatement::from_vec(&mut builder, &proof.public_inputs);
             G2Target::connect(&mut builder, &sipp_g2exp.p, &pi.p);
             G2Target::connect(&mut builder, &sipp_g2exp.p_x, &pi.p_x);
             FrTarget::connect(&mut builder, &sipp_g2exp.x, &pi.x);
@@ -593,12 +487,7 @@ where
         .iter()
         .zip(fq12exp_proof_targets.iter())
         .for_each(|(sipp_fq12exp, proof)| {
-            let pi = <Fq12ExpAggregationTarget<F, D> as RecursiveCircuitTarget<
-                F,
-                D,
-                Fq12ExpAggregationPublicInputs<F, D>,
-                Fq12ExpAggregationWitness<F, C, D>,
-            >>::from_vec(&mut builder, &proof.public_inputs);
+            let pi = Fq12ExpStatement::from_vec(&mut builder, &proof.public_inputs);
             Fq12Target::connect(&mut builder, &sipp_fq12exp.p, &pi.p);
             Fq12Target::connect(&mut builder, &sipp_fq12exp.p_x, &pi.p_x);
             FrTarget::connect(&mut builder, &sipp_fq12exp.x, &pi.x);
@@ -718,16 +607,16 @@ mod tests {
         let now = Instant::now();
         println!("Start: cirucit build");
         let (sipp_data, sipp_t) = build_verifier_circuit::<F, C, D>();
-        let dt = build_statementdata_and_target::<F, C, D>();
+        let dt = build_data_and_target();
         let (data, proof_targets) = build_wrapper_circuit(&sipp_data, &dt);
-        println!("End: circuit build. {} s", now.elapsed().as_secs());
+        println!("End: circuit build. {:?}", now.elapsed());
 
         // proof witness generation
         let now = Instant::now();
         println!("Start: proof generation");
         let proofs = generate_witness_proofs(&dt, &witness);
         let sipp_proof = generate_verifier_proof(&sipp_data, &sipp_t, &witness);
-        println!("End: proof generation. {} s", now.elapsed().as_secs());
+        println!("End: proof generation. {:?}", now.elapsed());
 
         // set witness
         let mut pw = PartialWitness::<F>::new();
@@ -751,6 +640,6 @@ mod tests {
         let now = Instant::now();
         println!("Start: wrap proof");
         let _wrap_proof = data.prove(pw).unwrap();
-        println!("End: wrap proof. {} s", now.elapsed().as_secs());
+        println!("End: wrap proof. {:?}", now.elapsed());
     }
 }
