@@ -20,7 +20,8 @@ anyhow = "1.0.71"
 hex = "0.4.3"
 plonky2-bn254-pairing={git="http://github.com/qope/plonky2-bn254-pairing", rev="d87dda4"}
 plonky2_ecdsa={git="https://github.com/qope/plonky2-ecdsa.git"}
-starky-bn254={git="https://github.com/qope/starky-bn254.git", rev="b07a9690"}
+starky = {git="https://github.com/qope/plonky2.git", rev="6502a2e"}
+starky-bn254={git="https://github.com/qope/starky-bn254.git", rev="be0b1ea"}
 plonky2 = "0.1.2"
 plonky2_u32="0.1.0"
 rayon = "1.7.0"

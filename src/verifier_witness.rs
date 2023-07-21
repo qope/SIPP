@@ -5,22 +5,28 @@ use plonky2::hash::hash_types::RichField;
 
 use crate::transcript_native::Transcript;
 
+#[derive(Debug, Clone, Copy)]
 pub struct G1ExpWitness {
-    pub p: G1Affine,
-    pub p_x: G1Affine,
-    pub x: Fr,
+    pub x: G1Affine,
+    pub offset: G1Affine,
+    pub exp_val: Fr,
+    pub output: G1Affine,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct G2ExpWitness {
-    pub p: G2Affine,
-    pub p_x: G2Affine,
-    pub x: Fr,
+    pub x: G2Affine,
+    pub offset: G2Affine,
+    pub exp_val: Fr,
+    pub output: G2Affine,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Fq12ExpWitness {
-    pub p: Fq12,
-    pub p_x: Fq12,
-    pub x: Fr,
+    pub x: Fq12,
+    pub offset: Fq12,
+    pub exp_val: Fr,
+    pub output: Fq12,
 }
 
 #[allow(non_snake_case)]
@@ -91,42 +97,44 @@ pub fn generate_verifier_witness<F: RichField>(
             let b1 = B1[i];
             let b2 = B2[i];
 
-            let x_a2: G1Affine = (a2 * x).into();
+            let a1_x_a2: G1Affine = (a1 + a2 * x).into();
 
             g1exp_w.push(G1ExpWitness {
-                p: a2,
-                x,
-                p_x: x_a2,
+                x: a2,
+                offset: a1,
+                exp_val: x,
+                output: a1_x_a2,
             });
 
-            let inv_x_b2: G2Affine = (b2 * inv_x).into();
+            let b1_inv_x_b2: G2Affine = (b1 + b2 * inv_x).into();
             g2exp_w.push(G2ExpWitness {
-                p: b2,
-                x: inv_x,
-                p_x: inv_x_b2,
+                x: b2,
+                offset: b1,
+                exp_val: inv_x,
+                output: b1_inv_x_b2,
             });
-            new_A.push((a1 + x_a2).into());
-            new_B.push((b1 + inv_x_b2).into());
+
+            new_A.push(a1_x_a2);
+            new_B.push(b1_inv_x_b2);
         }
 
         let x_biguint: BigUint = x.into();
         let inv_x_biguint: BigUint = inv_x.into();
-        let Z_L_x = Z_L.pow(&x_biguint.to_u64_digits());
-        let Z_R_inv_x = Z_R.pow(&inv_x_biguint.to_u64_digits());
+        let Z_Z_L_x = Z * Z_L.pow(&x_biguint.to_u64_digits());
+        let new_Z = Z_Z_L_x * Z_R.pow(&inv_x_biguint.to_u64_digits());
 
         fq12exp_w.push(Fq12ExpWitness {
-            p: Z_L,
-            x,
-            p_x: Z_L_x,
+            x: Z_L,
+            offset: Z,
+            exp_val: x,
+            output: Z_Z_L_x,
         });
-
         fq12exp_w.push(Fq12ExpWitness {
-            p: Z_R,
-            x: inv_x,
-            p_x: Z_R_inv_x,
+            x: Z_R,
+            offset: Z_Z_L_x,
+            exp_val: inv_x,
+            output: new_Z,
         });
-
-        let new_Z = Z_L_x * Z * Z_R_inv_x;
 
         A = new_A;
         B = new_B;
