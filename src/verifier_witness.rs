@@ -5,6 +5,7 @@ use plonky2::hash::hash_types::RichField;
 
 use crate::transcript_native::Transcript;
 
+#[derive(Debug, Clone, Copy)]
 pub struct G1ExpWitness {
     pub x: G1Affine,
     pub offset: G1Affine,
@@ -12,6 +13,7 @@ pub struct G1ExpWitness {
     pub output: G1Affine,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct G2ExpWitness {
     pub x: G2Affine,
     pub offset: G2Affine,
@@ -19,6 +21,7 @@ pub struct G2ExpWitness {
     pub output: G2Affine,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Fq12ExpWitness {
     pub x: Fq12,
     pub offset: Fq12,

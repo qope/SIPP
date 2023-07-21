@@ -38,6 +38,33 @@ pub struct Fq12ExpStatement<F: RichField + Extendable<D>, const D: usize> {
     pub output: Fq12Target<F, D>,
 }
 
+impl<F: RichField + Extendable<D>, const D: usize> G1ExpStatement<F, D> {
+    pub fn connect(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self) {
+        G1Target::connect(builder, &lhs.x, &rhs.x);
+        G1Target::connect(builder, &lhs.offset, &rhs.offset);
+        FrTarget::connect(builder, &lhs.exp_val, &rhs.exp_val);
+        G1Target::connect(builder, &lhs.output, &rhs.output);
+    }
+}
+
+impl<F: RichField + Extendable<D>, const D: usize> G2ExpStatement<F, D> {
+    pub fn connect(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self) {
+        G2Target::connect(builder, &lhs.x, &rhs.x);
+        G2Target::connect(builder, &lhs.offset, &rhs.offset);
+        FrTarget::connect(builder, &lhs.exp_val, &rhs.exp_val);
+        G2Target::connect(builder, &lhs.output, &rhs.output);
+    }
+}
+
+impl<F: RichField + Extendable<D>, const D: usize> Fq12ExpStatement<F, D> {
+    pub fn connect(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self) {
+        Fq12Target::connect(builder, &lhs.x, &rhs.x);
+        Fq12Target::connect(builder, &lhs.offset, &rhs.offset);
+        FrTarget::connect(builder, &lhs.exp_val, &rhs.exp_val);
+        Fq12Target::connect(builder, &lhs.output, &rhs.output);
+    }
+}
+
 impl<F: RichField + Extendable<D>, const D: usize>
     RecursiveCircuitTarget<F, D, G1ExpStatement<F, D>, G1ExpWitness> for G1ExpStatement<F, D>
 {
@@ -75,6 +102,7 @@ impl<F: RichField + Extendable<D>, const D: usize>
             output,
         }
     }
+
     fn set_witness(&self, pw: &mut PartialWitness<F>, value: &G1ExpWitness) {
         self.x.set_witness(pw, &value.x);
         self.offset.set_witness(pw, &value.offset);

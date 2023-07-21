@@ -12,23 +12,25 @@ use plonky2::{
 };
 use plonky2_bn254_pairing::{
     curves::{g1curve_target::G1Target, g2curve_target::G2Target},
-    fields::{fq12_target::Fq12Target, fq_target::FqTarget, fr_target::FrTarget},
+    fields::fq12_target::Fq12Target,
     traits::recursive_circuit_target::RecursiveCircuitTarget,
 };
-use rayon::prelude::*;
-use starky_bn254::proof::StarkProofWithPublicInputsTarget;
+use starky::proof::StarkProofWithPublicInputsTarget;
 
 use crate::{
     starky_prover::{
         build_fq12_exp_circuit, build_g1_exp_circuit, build_g2_exp_circuit,
         generate_fq12_exp_proof, generate_g1_exp_proof, generate_g2_exp_proof,
     },
-    statements::{Fq12ExpStatement, G1ExpStatement, G2ExpStatement},
+    statements::{
+        Fq12ExpStatement, G1ExpStatement, G2ExpStatement, FQ12_EXP_STATEMENT_LEN,
+        G1_EXP_STATEMENT_LEN, G2_EXP_STATEMENT_LEN,
+    },
     transcript_circuit::TranscriptCircuit,
     verifier_witness::VerifierCircuitWitness,
 };
 
-const LOG_N: usize = 4;
+const LOG_N: usize = 7;
 
 #[allow(non_snake_case)]
 pub struct VerifierCircuitTarget<F: RichField + Extendable<D>, const D: usize> {
@@ -99,23 +101,19 @@ impl<F: RichField + Extendable<D>, const D: usize>
         input: &[Target],
     ) -> VerifierCircuitPublicInputs<F, D> {
         let n = 1 << LOG_N;
-        let num_limbs = FqTarget::<F, D>::num_max_limbs();
-        let num_fr_limbs = FrTarget::<F, D>::num_max_limbs();
+        let num_limbs = 8;
         let num_g1_limbs = 2 * num_limbs;
         let num_g2_limbs = 4 * num_limbs;
         let num_fq12_limbs = 12 * num_limbs;
-        let num_g1_statement_limbs = 2 * num_g1_limbs + num_fr_limbs;
-        let num_g2_statement_limbs = 2 * num_g2_limbs + num_fr_limbs;
-        let num_fq12_statement_limbs = 2 * num_fq12_limbs + num_fr_limbs;
 
         let num_a_limbs = n * num_g1_limbs;
         let num_b_limbs = n * num_g2_limbs;
         let num_final_a_limbs = num_g1_limbs;
         let num_final_b_limbs = num_g2_limbs;
         let num_z_limbs = num_fq12_limbs;
-        let num_g1exp_limbs = (n - 1) * num_g1_statement_limbs;
-        let num_g2exp_limbs = (n - 1) * num_g2_statement_limbs;
-        let num_fq12exp_limbs = 2 * LOG_N * num_fq12_statement_limbs;
+        let num_g1exp_limbs = (n - 1) * G1_EXP_STATEMENT_LEN;
+        let num_g2exp_limbs = (n - 1) * G2_EXP_STATEMENT_LEN;
+        let num_fq12exp_limbs = 2 * LOG_N * FQ12_EXP_STATEMENT_LEN;
 
         let mut input = input.to_vec();
         let a_raw = input.drain(0..num_a_limbs).collect_vec();
@@ -141,15 +139,15 @@ impl<F: RichField + Extendable<D>, const D: usize>
         let final_B = G2Target::from_vec(builder, &final_b_raw);
         let Z = Fq12Target::from_vec(builder, &z_raw);
         let g1exp = g1exp_raw
-            .chunks_exact(num_g1_statement_limbs)
+            .chunks_exact(G1_EXP_STATEMENT_LEN)
             .map(|x| G1ExpStatement::from_vec(builder, x))
             .collect_vec();
         let g2exp = g2exp_raw
-            .chunks_exact(num_g2_statement_limbs)
+            .chunks_exact(G2_EXP_STATEMENT_LEN)
             .map(|x| G2ExpStatement::from_vec(builder, x))
             .collect_vec();
         let fq12exp = fq12exp_raw
-            .chunks_exact(num_fq12_statement_limbs)
+            .chunks_exact(FQ12_EXP_STATEMENT_LEN)
             .map(|x| Fq12ExpStatement::from_vec(builder, x))
             .collect_vec();
 
@@ -256,38 +254,40 @@ pub fn verifier_circuit<F: RichField + Extendable<D>, const D: usize>(
             let b1_t = B1_t[i].clone();
             let b2_t = B2_t[i].clone();
 
-            let x_a2_t = G1Target::new(builder);
+            let a1_x_a2_t = G1Target::new(builder);
             g1exp_t.push(G1ExpStatement {
-                p: a2_t,
-                x: x_t.clone(),
-                p_x: x_a2_t.clone(),
+                x: a2_t,
+                offset: a1_t,
+                exp_val: x_t.clone(),
+                output: a1_x_a2_t.clone(),
             });
-            new_A_t.push(a1_t.add(builder, &x_a2_t));
+            new_A_t.push(a1_x_a2_t);
 
-            let inv_x_b2_t = G2Target::new(builder);
+            let b1_inv_x_b2_t = G2Target::new(builder);
             g2exp_t.push(G2ExpStatement {
-                p: b2_t,
-                x: inv_x_t.clone(),
-                p_x: inv_x_b2_t.clone(),
+                x: b2_t,
+                offset: b1_t,
+                exp_val: inv_x_t.clone(),
+                output: b1_inv_x_b2_t.clone(),
             });
-            new_B_t.push(b1_t.add(builder, &inv_x_b2_t));
+            new_B_t.push(b1_inv_x_b2_t);
         }
 
-        let Z_L_x_t = Fq12Target::new(builder);
+        let Z_Z_L_x_t = Fq12Target::new(builder);
         fq12exp_t.push(Fq12ExpStatement {
-            p: Z_L_t,
-            x: x_t,
-            p_x: Z_L_x_t.clone(),
+            x: Z_L_t,
+            offset: Z_t,
+            exp_val: x_t,
+            output: Z_Z_L_x_t.clone(),
         });
 
-        let Z_R_inv_x_t = Fq12Target::new(builder);
+        let new_Z_t = Fq12Target::new(builder);
         fq12exp_t.push(Fq12ExpStatement {
-            p: Z_R_t,
-            x: inv_x_t,
-            p_x: Z_R_inv_x_t.clone(),
+            x: Z_R_t,
+            offset: Z_Z_L_x_t,
+            exp_val: inv_x_t,
+            output: new_Z_t.clone(),
         });
-
-        let new_Z_t = Z_L_x_t.mul(builder, &Z_t).mul(builder, &Z_R_inv_x_t);
 
         // update
         A_t = new_A_t;
@@ -352,9 +352,9 @@ pub struct WitnessProofs<F: RichField + Extendable<D>, C: GenericConfig<D, F = F
 
 pub struct StatementProofs<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
 {
-    pub g1exp_proofs: Vec<ProofWithPublicInputs<F, C, D>>,
-    pub g2exp_proofs: Vec<ProofWithPublicInputs<F, C, D>>,
-    pub fq12exp_proofs: Vec<ProofWithPublicInputs<F, C, D>>,
+    pub g1_exp_proof: ProofWithPublicInputs<F, C, D>,
+    pub g2_exp_proof: ProofWithPublicInputs<F, C, D>,
+    pub fq12_exp_proof: ProofWithPublicInputs<F, C, D>,
 }
 
 pub struct DataAndTarget<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> {
@@ -371,9 +371,9 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 pub fn build_data_and_target() -> DataAndTarget<F, C, D> {
-    let (g1exp_data, _, g1exp_proof_t) = build_g1_exp_circuit();
-    let (g2exp_data, _, g2exp_proof_t) = build_g2_exp_circuit();
-    let (fq12exp_data, _, fq12exp_proof_t) = build_fq12_exp_circuit();
+    let (g1exp_data, g1exp_proof_t) = build_g1_exp_circuit();
+    let (g2exp_data, g2exp_proof_t) = build_g2_exp_circuit();
+    let (fq12exp_data, fq12exp_proof_t) = build_fq12_exp_circuit();
     DataAndTarget {
         g1exp_data,
         g2exp_data,
@@ -389,27 +389,22 @@ pub fn generate_witness_proofs(
     witness: &VerifierCircuitWitness,
 ) -> StatementProofs<F, C, D> {
     println!("Start: g1exp_proofs");
-    let g1exp_proofs: Vec<_> = witness
-        .g1exp
-        .par_iter()
-        .map(|g1exp_w| generate_g1_exp_proof(g1exp_w, &dt.g1exp_data, &dt.g1exp_proof_t))
-        .collect();
+    let mut ws = witness.g1exp.clone();
+    ws.push(ws.last().unwrap().clone());
+    let g1_exp_proof = generate_g1_exp_proof(&ws, &dt.g1exp_data, &dt.g1exp_proof_t);
     println!("Start: g2exp_proofs");
-    let g2exp_proofs: Vec<_> = witness
-        .g2exp
-        .par_iter()
-        .map(|g2exp_w| generate_g2_exp_proof(g2exp_w, &dt.g2exp_data, &dt.g2exp_proof_t))
-        .collect();
+    let mut ws = witness.g2exp.clone();
+    ws.push(ws.last().unwrap().to_owned());
+    let g2_exp_proof = generate_g2_exp_proof(&ws, &dt.g2exp_data, &dt.g2exp_proof_t);
     println!("Start: fq12exp_proofs");
-    let fq12exp_proofs: Vec<_> = witness
-        .fq12exp
-        .par_iter()
-        .map(|fq12exp_w| generate_fq12_exp_proof(fq12exp_w, &dt.fq12exp_data, &dt.fq12exp_proof_t))
-        .collect();
+    let mut ws = witness.fq12exp.clone();
+    ws.push(ws.last().unwrap().to_owned());
+    ws.push(ws.last().unwrap().to_owned());
+    let fq12_exp_proof = generate_fq12_exp_proof(&ws, &dt.fq12exp_data, &dt.fq12exp_proof_t);
     StatementProofs {
-        g1exp_proofs,
-        g2exp_proofs,
-        fq12exp_proofs,
+        g1_exp_proof,
+        g2_exp_proof,
+        fq12_exp_proof,
     }
 }
 
@@ -432,29 +427,42 @@ where
 
 pub struct ProofTargets<const D: usize> {
     pub sipp_proof_target: ProofWithPublicInputsTarget<D>,
-    pub g1exp_proof_targets: Vec<ProofWithPublicInputsTarget<D>>,
-    pub g2exp_proof_targets: Vec<ProofWithPublicInputsTarget<D>>,
-    pub fq12exp_proof_targets: Vec<ProofWithPublicInputsTarget<D>>,
+    pub g1_exp_proof_target: ProofWithPublicInputsTarget<D>,
+    pub g2_exp_proof_target: ProofWithPublicInputsTarget<D>,
+    pub fq12_exp_proof_target: ProofWithPublicInputsTarget<D>,
 }
 
 pub fn build_wrapper_circuit(
     sipp_data: &CircuitData<F, C, D>,
     dt: &DataAndTarget<F, C, D>,
 ) -> (CircuitData<F, C, D>, ProofTargets<D>) {
-    let n = 1 << LOG_N;
     let config = CircuitConfig::standard_ecc_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
 
     let sipp_proof_target = add_recursive_constraint(&mut builder, &sipp_data);
-    let g1exp_proof_targets = (0..n - 1)
-        .map(|_| add_recursive_constraint(&mut builder, &dt.g1exp_data))
+    let g1_exp_proof_target = add_recursive_constraint(&mut builder, &dt.g1exp_data);
+    let g2_exp_proof_target = add_recursive_constraint(&mut builder, &dt.g2exp_data);
+    let fq12_exp_proof_target = add_recursive_constraint(&mut builder, &dt.fq12exp_data);
+
+    let mut g1_statements = g1_exp_proof_target
+        .public_inputs
+        .chunks(G1_EXP_STATEMENT_LEN)
+        .map(|x| G1ExpStatement::from_vec(&mut builder, x))
         .collect_vec();
-    let g2exp_proof_targets = (0..n - 1)
-        .map(|_| add_recursive_constraint(&mut builder, &dt.g2exp_data))
+    g1_statements.pop();
+    let mut g2_statements = g2_exp_proof_target
+        .public_inputs
+        .chunks(G2_EXP_STATEMENT_LEN)
+        .map(|x| G2ExpStatement::from_vec(&mut builder, x))
         .collect_vec();
-    let fq12exp_proof_targets = (0..2 * LOG_N)
-        .map(|_| add_recursive_constraint(&mut builder, &dt.fq12exp_data))
+    g2_statements.pop();
+    let mut fq12_statements = fq12_exp_proof_target
+        .public_inputs
+        .chunks(FQ12_EXP_STATEMENT_LEN)
+        .map(|x| Fq12ExpStatement::from_vec(&mut builder, x))
         .collect_vec();
+    fq12_statements.pop();
+    fq12_statements.pop();
 
     // constrain public inputs
     let verifier_circuit_pi =
@@ -463,40 +471,32 @@ pub fn build_wrapper_circuit(
     verifier_circuit_pi
         .g1exp
         .iter()
-        .zip(g1exp_proof_targets.iter())
-        .for_each(|(sipp_g1exp, proof)| {
-            let pi = G1ExpStatement::from_vec(&mut builder, &proof.public_inputs);
-            G1Target::connect(&mut builder, &sipp_g1exp.p, &pi.p);
-            G1Target::connect(&mut builder, &sipp_g1exp.p_x, &pi.p_x);
-            FrTarget::connect(&mut builder, &sipp_g1exp.x, &pi.x);
+        .zip(g1_statements)
+        .for_each(|(lhs, rhs)| {
+            G1ExpStatement::connect(&mut builder, lhs, &rhs);
         });
 
     verifier_circuit_pi
         .g2exp
         .iter()
-        .zip(g2exp_proof_targets.iter())
-        .for_each(|(sipp_g2exp, proof)| {
-            let pi = G2ExpStatement::from_vec(&mut builder, &proof.public_inputs);
-            G2Target::connect(&mut builder, &sipp_g2exp.p, &pi.p);
-            G2Target::connect(&mut builder, &sipp_g2exp.p_x, &pi.p_x);
-            FrTarget::connect(&mut builder, &sipp_g2exp.x, &pi.x);
+        .zip(g2_statements.iter())
+        .for_each(|(lhs, rhs)| {
+            G2ExpStatement::connect(&mut builder, lhs, rhs);
         });
 
     verifier_circuit_pi
         .fq12exp
         .iter()
-        .zip(fq12exp_proof_targets.iter())
-        .for_each(|(sipp_fq12exp, proof)| {
-            let pi = Fq12ExpStatement::from_vec(&mut builder, &proof.public_inputs);
-            Fq12Target::connect(&mut builder, &sipp_fq12exp.p, &pi.p);
-            Fq12Target::connect(&mut builder, &sipp_fq12exp.p_x, &pi.p_x);
-            FrTarget::connect(&mut builder, &sipp_fq12exp.x, &pi.x);
+        .zip(fq12_statements.iter())
+        .for_each(|(lhs, rhs)| {
+            Fq12ExpStatement::connect(&mut builder, lhs, rhs);
         });
+
     let prooftargets = ProofTargets {
         sipp_proof_target,
-        g1exp_proof_targets,
-        g2exp_proof_targets,
-        fq12exp_proof_targets,
+        g1_exp_proof_target,
+        g2_exp_proof_target,
+        fq12_exp_proof_target,
     };
     let data = builder.build::<C>();
     (data, prooftargets)
@@ -621,21 +621,9 @@ mod tests {
         // set witness
         let mut pw = PartialWitness::<F>::new();
         pw.set_proof_with_pis_target(&proof_targets.sipp_proof_target, &sipp_proof);
-        proof_targets
-            .g1exp_proof_targets
-            .iter()
-            .zip(proofs.g1exp_proofs.iter())
-            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
-        proof_targets
-            .g2exp_proof_targets
-            .iter()
-            .zip(proofs.g2exp_proofs.iter())
-            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
-        proof_targets
-            .fq12exp_proof_targets
-            .iter()
-            .zip(proofs.fq12exp_proofs.iter())
-            .for_each(|(t, w)| pw.set_proof_with_pis_target(t, w));
+        pw.set_proof_with_pis_target(&proof_targets.g1_exp_proof_target, &proofs.g1_exp_proof);
+        pw.set_proof_with_pis_target(&proof_targets.g2_exp_proof_target, &proofs.g2_exp_proof);
+        pw.set_proof_with_pis_target(&proof_targets.fq12_exp_proof_target, &proofs.fq12_exp_proof);
 
         let now = Instant::now();
         println!("Start: wrap proof");
