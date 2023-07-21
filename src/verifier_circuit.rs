@@ -629,6 +629,6 @@ mod tests {
         let now = Instant::now();
         println!("Start: wrap proof");
         let _wrap_proof = data.prove(pw).unwrap();
-        println!("End: wrap proof. {:?}", now.elapsed());
+        println!("End: wrap proof. took {:?}", now.elapsed());
     }
 }

@@ -18,8 +18,20 @@ The Prover and Verifier repeat the following steps
 
 When $n = 1$, the Verifier checks if $e(A, B) \overset{?}{=} Z$, and accepts if this is the case.
 
-
 # test
 
-```cargo test test_sipp_circuit -r -- --nocapture```
+`cargo test test_sipp_circuit -r -- --nocapture`
 
+A result on M1MacBookPro(2021)
+
+```
+Start: aggregate 128 pairings into 1
+Start: cirucit build
+End: circuit build. 38.938160042s
+Start: proof generation
+End: proof generation. took 144.748656916s
+Start: wrap proof
+End: wrap proof. took 5.2134525s
+```
+
+It took about 150secs for 128 pairing aggregation (without circuit building).
