@@ -13,6 +13,10 @@ use plonky2_bn254_pairing::{
 
 use crate::verifier_witness::{Fq12ExpWitness, G1ExpWitness, G2ExpWitness};
 
+pub const G1_EXP_STATEMENT_LEN: usize = 7 * 8;
+pub const G2_EXP_STATEMENT_LEN: usize = 13 * 8;
+pub const FQ12_EXP_STATEMENT_LEN: usize = 12 * 8 * 3 + 8;
+
 pub struct G1ExpStatement<F: RichField + Extendable<D>, const D: usize> {
     pub x: G1Target<F, D>,
     pub offset: G1Target<F, D>,
@@ -49,6 +53,7 @@ impl<F: RichField + Extendable<D>, const D: usize>
             .collect_vec()
     }
     fn from_vec(builder: &mut CircuitBuilder<F, D>, input: &[Target]) -> G1ExpStatement<F, D> {
+        assert!(input.len() == G1_EXP_STATEMENT_LEN);
         let num_limbs = FqTarget::<F, D>::num_max_limbs();
         let num_g1_limbs = 2 * num_limbs;
         let num_fr_limbs = FrTarget::<F, D>::num_max_limbs();
@@ -81,6 +86,7 @@ impl<F: RichField + Extendable<D>, const D: usize>
 impl<F: RichField + Extendable<D>, const D: usize>
     RecursiveCircuitTarget<F, D, G2ExpStatement<F, D>, G2ExpWitness> for G2ExpStatement<F, D>
 {
+    //13*8=104
     fn to_vec(&self) -> Vec<Target> {
         self.x
             .to_vec()
@@ -92,6 +98,7 @@ impl<F: RichField + Extendable<D>, const D: usize>
             .collect_vec()
     }
     fn from_vec(builder: &mut CircuitBuilder<F, D>, input: &[Target]) -> G2ExpStatement<F, D> {
+        assert!(input.len() == G2_EXP_STATEMENT_LEN);
         let num_limbs = FqTarget::<F, D>::num_max_limbs();
         let num_g2_limbs = 4 * num_limbs;
         let num_fr_limbs = FrTarget::<F, D>::num_max_limbs();
@@ -125,6 +132,7 @@ impl<F: RichField + Extendable<D>, const D: usize>
     RecursiveCircuitTarget<F, D, Fq12ExpStatement<F, D>, Fq12ExpWitness>
     for Fq12ExpStatement<F, D>
 {
+    //12*8*3+8=296
     fn to_vec(&self) -> Vec<Target> {
         self.x
             .to_vec()
@@ -136,6 +144,7 @@ impl<F: RichField + Extendable<D>, const D: usize>
             .collect_vec()
     }
     fn from_vec(builder: &mut CircuitBuilder<F, D>, input: &[Target]) -> Fq12ExpStatement<F, D> {
+        assert!(input.len() == FQ12_EXP_STATEMENT_LEN);
         let num_limbs = FqTarget::<F, D>::num_max_limbs();
         let num_fq12_limbs = 12 * num_limbs;
         let num_fr_limbs = FrTarget::<F, D>::num_max_limbs();
