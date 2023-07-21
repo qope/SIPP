@@ -17,3 +17,9 @@ The Prover and Verifier repeat the following steps
 5. Update $\vec{A}\leftarrow \vec{A}', \vec{B}\leftarrow \vec{B}', Z \leftarrow Z', n \leftarrow n/2$
 
 When $n = 1$, the Verifier checks if $e(A, B) \overset{?}{=} Z$, and accepts if this is the case.
+
+
+# test
+
+```cargo test test_sipp_circuit -r -- --nocapture```
+
