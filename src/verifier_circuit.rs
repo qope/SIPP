@@ -522,7 +522,7 @@ mod tests {
 
     #[test]
     #[allow(non_snake_case)]
-    fn test_sipp_circuit_without_proving_statements() {
+    fn test_simple_sipp_circuit_without_proving_statements() {
         let rng = &mut ark_std::test_rng();
         let n = 1 << LOG_N;
         let A = (0..n).map(|_| G1Affine::rand(rng)).collect_vec();
