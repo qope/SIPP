@@ -538,7 +538,6 @@ mod tests {
         let mut pw = PartialWitness::<F>::new();
         t.set_witness(&mut pw, &witness);
         let _proof = data.prove(pw).unwrap();
-        dbg!(data.common.degree_bits());
     }
 
     #[test]
@@ -596,7 +595,7 @@ mod tests {
     #[test]
     #[allow(non_snake_case)]
     fn test_sipp_circuit() {
-        println!("Start: aggregate {} pairings", 1 << LOG_N);
+        println!("Start: aggregate {} pairings into 1", 1 << LOG_N);
 
         let rng = &mut ark_std::test_rng();
         let n = 1 << LOG_N;
@@ -618,7 +617,7 @@ mod tests {
         println!("Start: proof generation");
         let proofs = generate_witness_proofs(&dt, &witness);
         let sipp_proof = generate_verifier_proof(&sipp_data, &sipp_t, &witness);
-        println!("End: proof generation. {:?}", now.elapsed());
+        println!("End: proof generation. took {:?}", now.elapsed());
 
         // set witness
         let mut pw = PartialWitness::<F>::new();
