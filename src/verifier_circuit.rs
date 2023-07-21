@@ -388,15 +388,12 @@ pub fn generate_witness_proofs(
     dt: &DataAndTarget<F, C, D>,
     witness: &VerifierCircuitWitness,
 ) -> StatementProofs<F, C, D> {
-    println!("Start: g1exp_proofs");
     let mut ws = witness.g1exp.clone();
     ws.push(ws.last().unwrap().clone());
     let g1_exp_proof = generate_g1_exp_proof(&ws, &dt.g1exp_data, &dt.g1exp_proof_t);
-    println!("Start: g2exp_proofs");
     let mut ws = witness.g2exp.clone();
     ws.push(ws.last().unwrap().to_owned());
     let g2_exp_proof = generate_g2_exp_proof(&ws, &dt.g2exp_data, &dt.g2exp_proof_t);
-    println!("Start: fq12exp_proofs");
     let mut ws = witness.fq12exp.clone();
     ws.push(ws.last().unwrap().to_owned());
     ws.push(ws.last().unwrap().to_owned());
@@ -610,7 +607,7 @@ mod tests {
         let (sipp_data, sipp_t) = build_verifier_circuit::<F, C, D>();
         let dt = build_data_and_target();
         let (data, proof_targets) = build_wrapper_circuit(&sipp_data, &dt);
-        println!("End: circuit build. {:?}", now.elapsed());
+        println!("End: circuit build. took {:?}", now.elapsed());
 
         // proof witness generation
         let now = Instant::now();
