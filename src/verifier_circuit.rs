@@ -314,8 +314,7 @@ mod tests {
     #[test]
     #[allow(non_snake_case)]
     fn test_sipp_circuit() {
-        println!("Start: aggregate {} pairings into 1", 1 << LOG_N);
-
+        println!("Aggregating {} pairings into 1", 1 << LOG_N);
         let mut rng = rand::thread_rng();
         let n = 1 << LOG_N;
         let A = (0..n).map(|_| G1Affine::rand(&mut rng)).collect_vec();
@@ -324,16 +323,15 @@ mod tests {
         let sipp_proof = sipp_prove_native(&A, &B);
         assert!(sipp_verify_native(&A, &B, &sipp_proof).is_ok());
 
-        let now = Instant::now();
         println!("Start: cirucit build");
+        let now = Instant::now();
         let starky_circuits = build_starky_circuits();
         let (sipp_snark_circuit, statement_target, witness_proofs_target) =
             build_sipp_snark_verifier_circuit(&starky_circuits);
         println!("End: circuit build. took {:?}", now.elapsed());
 
-        // proof witness generation
-        let now = Instant::now();
         println!("Start: proof generation");
+        let now = Instant::now();
         let _proof = generate_sipp_snark_verifier_proof(
             &sipp_snark_circuit,
             &starky_circuits,

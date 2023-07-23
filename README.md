@@ -31,13 +31,11 @@ Operations such as G1, G1 scalar multiplication, and Fq12 exponentiation have be
 A result on M1MacBookPro(2021)
 
 ```
-Start: aggregate 128 pairings into 1
+Aggregating 128 pairings into 1
 Start: cirucit build
-End: circuit build. took 38.938160042s
+End: circuit build. took 35.545641375s
 Start: proof generation
-End: proof generation. took 144.748656916s
-Start: wrap proof
-End: wrap proof. took 5.2134525s
+End: proof generation. took 145.043526708s
 ```
 
-It took about 150secs for 128 pairing aggregation (without circuit building).
+It took about 150secs for 128 pairing aggregation (without circuit build time).
