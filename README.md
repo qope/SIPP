@@ -38,4 +38,4 @@ Start: proof generation
 End: proof generation. took 145.043526708s
 ```
 
-It took about 150secs for 128 pairing aggregation (without circuit build time).
+It takes about 145 secs for 128 pairing aggregation (without circuit building time).
