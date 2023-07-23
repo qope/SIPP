@@ -30,25 +30,27 @@ pub struct Fq12ExpWitness {
 }
 
 #[allow(non_snake_case)]
-pub struct VerifierCircuitWitness {
-    pub n: usize,
+pub struct SIPPStatement {
     pub A: Vec<G1Affine>,
     pub B: Vec<G2Affine>,
     pub final_A: G1Affine,
     pub final_B: G2Affine,
     pub Z: Fq12,
-    pub proof: Vec<Fq12>,
-    pub g1exp: Vec<G1ExpWitness>,
-    pub g2exp: Vec<G2ExpWitness>,
-    pub fq12exp: Vec<Fq12ExpWitness>,
+}
+
+pub struct SIPPWitness {
+    pub sipp_proof: Vec<Fq12>,
+    pub g1_exp: Vec<G1ExpWitness>,
+    pub g2_exp: Vec<G2ExpWitness>,
+    pub fq12_exp: Vec<Fq12ExpWitness>,
 }
 
 #[allow(non_snake_case)]
-pub fn generate_verifier_witness<F: RichField>(
+pub fn generate_sipp_verifier_witness<F: RichField>(
     A: &[G1Affine],
     B: &[G2Affine],
     proof: &[Fq12],
-) -> VerifierCircuitWitness {
+) -> (SIPPStatement, SIPPWitness) {
     let mut g1exp_w: Vec<G1ExpWitness> = vec![];
     let mut g2exp_w: Vec<G2ExpWitness> = vec![];
     let mut fq12exp_w: Vec<Fq12ExpWitness> = vec![];
@@ -142,16 +144,18 @@ pub fn generate_verifier_witness<F: RichField>(
         n = n / 2;
     }
 
-    VerifierCircuitWitness {
-        n: original_n,
+    let statement = SIPPStatement {
         A: original_A,
         B: original_B,
         final_A: A[0],
         final_B: B[0],
         Z,
-        proof: original_proof,
-        g1exp: g1exp_w,
-        g2exp: g2exp_w,
-        fq12exp: fq12exp_w,
-    }
+    };
+    let witness = SIPPWitness {
+        sipp_proof: original_proof,
+        g1_exp: g1exp_w,
+        g2_exp: g2exp_w,
+        fq12_exp: fq12exp_w,
+    };
+    (statement, witness)
 }

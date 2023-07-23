@@ -23,7 +23,7 @@ pub fn inner_product(A: &[G1Affine], B: &[G2Affine]) -> Fq12 {
 }
 
 #[allow(non_snake_case)]
-pub fn prove(A: &[G1Affine], B: &[G2Affine]) -> Vec<Fq12> {
+pub fn sipp_prove_native(A: &[G1Affine], B: &[G2Affine]) -> Vec<Fq12> {
     assert_eq!(A.len(), B.len());
     let mut n = A.len();
     let Z = inner_product(A, B);

@@ -11,7 +11,7 @@ use std::ops::Mul;
 type F = GoldilocksField;
 
 #[allow(non_snake_case)]
-pub fn verify(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<()> {
+pub fn sipp_verify_native(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<()> {
     let mut n = A.len();
     let mut A = A.to_vec();
     let mut B = B.to_vec();
@@ -75,7 +75,7 @@ pub fn verify(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::prover_native::prove;
+    use crate::prover_native::sipp_prove_native;
 
     use super::*;
     use ark_bn254::{G1Affine, G2Affine};
@@ -84,12 +84,12 @@ mod tests {
 
     #[test]
     #[allow(non_snake_case)]
-    fn test_sipp() {
+    fn test_sipp_native() {
         let rng = &mut ark_std::test_rng();
         let n = 64;
         let A = (0..n).map(|_| G1Affine::rand(rng)).collect_vec();
         let B = (0..n).map(|_| G2Affine::rand(rng)).collect_vec();
-        let proof = prove(&A, &B);
-        assert!(verify(&A, &B, &proof).is_ok());
+        let proof = sipp_prove_native(&A, &B);
+        assert!(sipp_verify_native(&A, &B, &proof).is_ok());
     }
 }

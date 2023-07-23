@@ -58,7 +58,9 @@ pub fn generate_g1_exp_proof(
     inner_data: &CircuitData<F, C, D>,
     starky_proof_t: &StarkProofWithPublicInputsTarget<D>,
 ) -> ProofWithPublicInputs<F, C, D> {
-    assert!(ws.len() == NUM_G1_IO);
+    assert!(ws.len() <= NUM_G1_IO);
+    let to_padd = vec![*ws.last().unwrap(); NUM_G1_IO - ws.len()];
+    let ws = ws.into_iter().chain(to_padd.iter()).collect_vec();
     type S = G1ExpStark<F, D>;
     let inner_config = StarkConfig::standard_fast_config();
     let stark = G1ExpStark::<F, D>::new();
@@ -113,7 +115,9 @@ pub fn generate_g2_exp_proof(
     inner_data: &CircuitData<F, C, D>,
     starky_proof_t: &StarkProofWithPublicInputsTarget<D>,
 ) -> ProofWithPublicInputs<F, C, D> {
-    assert!(ws.len() == NUM_G2_IO);
+    assert!(ws.len() <= NUM_G2_IO);
+    let to_padd = vec![*ws.last().unwrap(); NUM_G2_IO - ws.len()];
+    let ws = ws.into_iter().chain(to_padd.iter()).collect_vec();
     type S = G2ExpStark<F, D>;
     let inner_config = StarkConfig::standard_fast_config();
     let stark = G2ExpStark::<F, D>::new();
@@ -166,7 +170,9 @@ pub fn generate_fq12_exp_proof(
     inner_data: &CircuitData<F, C, D>,
     starky_proof_t: &StarkProofWithPublicInputsTarget<D>,
 ) -> ProofWithPublicInputs<F, C, D> {
-    assert!(ws.len() == NUM_FQ12_IO);
+    assert!(ws.len() <= NUM_FQ12_IO);
+    let to_padd = vec![*ws.last().unwrap(); NUM_FQ12_IO - ws.len()];
+    let ws = ws.into_iter().chain(to_padd.iter()).collect_vec();
     type S = Fq12ExpStark<F, D>;
     let inner_config = StarkConfig::standard_fast_config();
     let stark = Fq12ExpStark::<F, D>::new();
@@ -199,6 +205,29 @@ pub fn generate_fq12_exp_proof(
     set_stark_proof_with_pis_target(&mut pw, starky_proof_t, &stark_proof);
     let proof = inner_data.prove(pw).unwrap();
     proof
+}
+
+pub struct StarkyCircuits {
+    pub g1_exp_data: CircuitData<F, C, D>,
+    pub g2_exp_data: CircuitData<F, C, D>,
+    pub fq12_exp_data: CircuitData<F, C, D>,
+    pub g1_exp_starky_proof: StarkProofWithPublicInputsTarget<D>,
+    pub g2_exp_starky_proof: StarkProofWithPublicInputsTarget<D>,
+    pub fq12_exp_starky_proof: StarkProofWithPublicInputsTarget<D>,
+}
+
+pub fn build_starky_circuits() -> StarkyCircuits {
+    let (g1_exp_data, g1_exp_starky_proof) = build_g1_exp_circuit();
+    let (g2_exp_data, g2_exp_starky_proof) = build_g2_exp_circuit();
+    let (fq12_exp_data, fq12_exp_starky_proof) = build_fq12_exp_circuit();
+    StarkyCircuits {
+        g1_exp_data,
+        g2_exp_data,
+        fq12_exp_data,
+        g1_exp_starky_proof,
+        g2_exp_starky_proof,
+        fq12_exp_starky_proof,
+    }
 }
 
 #[cfg(test)]
