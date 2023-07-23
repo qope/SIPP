@@ -17,12 +17,13 @@ The Prover and Verifier repeat the following steps
 5. Update $\vec{A}\leftarrow \vec{A}', \vec{B}\leftarrow \vec{B}', Z \leftarrow Z', n \leftarrow n/2$
 
 When $n = 1$, the Verifier checks if $e(A, B) \overset{?}{=} Z$, and accepts if this is the case.
+It is possible to convert the above protocol to a non-interactive protocol using the Fiat-Shamir transform.
 
 ## SIPP in SNARK
 
 In this repository, I've implemented a plonky2 circuit for verifying the SIPP proof. The final pairing is merely included in the public inputs rather than being directly proven within the plonky2 circuit, due to the high cost of direct verification by plonky2.
 
-Operations such as G1, G1 scalar multiplication, and Fq12 exponentiation have been implemented using starky. Their respective proofs are then recursively verified within the plonky2 circuit.
+Operations such as G1, G2 scalar multiplication, and Fq12 exponentiation have been implemented using starky. Their respective proofs are then recursively verified within the plonky2 circuit.
 
 ## test
 
