@@ -18,6 +18,12 @@ The Prover and Verifier repeat the following steps
 
 When $n = 1$, the Verifier checks if $e(A, B) \overset{?}{=} Z$, and accepts if this is the case.
 
+# SIPP in SNARK
+
+In this repository, I've implemented a plonky2 circuit for verifying the SIPP proof. The final pairing is merely included in the public inputs rather than being directly proven within the plonky2 circuit, due to the high cost of direct verification by plonky2.
+
+Operations such as G1, G1 scalar multiplication, and Fq12 exponentiation have been implemented using starky. Their respective proofs are then recursively verified within the plonky2 circuit.
+
 # test
 
 `cargo test test_sipp_circuit -r -- --nocapture`
@@ -27,7 +33,7 @@ A result on M1MacBookPro(2021)
 ```
 Start: aggregate 128 pairings into 1
 Start: cirucit build
-End: circuit build. 38.938160042s
+End: circuit build. took 38.938160042s
 Start: proof generation
 End: proof generation. took 144.748656916s
 Start: wrap proof
