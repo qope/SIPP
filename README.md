@@ -1,8 +1,8 @@
 # SIPP
 
-https://eprint.iacr.org/2019/1177.pdf
+https://eprint.iacr.org/2019/1177
 
-The objective of SIPP is to efficiently compute the pairing $\vec{A}*\vec{B} := \prod_i e(A_i, B_i)$ of $\vec{A} \in \mathbb{G}_1^n$, $\vec{B} \in \mathbb{G}_2^n$.
+The aim of SIPP is to efficiently verify a product of pairings $\vec{A}*\vec{B} := \prod_i e(A_i, B_i)$ where $\vec{A} \in \mathbb{G}_1^n$ and $\vec{B} \in \mathbb{G}_2^n$.
 
 ## Procedure
 
