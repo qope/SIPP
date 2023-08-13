@@ -129,7 +129,7 @@ where
         n = n / 2;
     }
 
-    // padd because g1/g2/fq12 exp circuit requires the number of inputs to be a power of 2
+    // padd inputs because g1/g2/fq12 exp circuit requires the length of inputs to be a power of 2
     g1exp_inputs_t.push(g1exp_inputs_t.last().unwrap().clone());
     g1exp_output_t.push(g1exp_output_t.last().unwrap().clone());
     g2exp_inputs_t.push(g2exp_inputs_t.last().unwrap().clone());
@@ -159,14 +159,13 @@ where
         .zip(contr_fq12exp_outputs_t.iter())
         .for_each(|(a, b)| Fq12Target::connect(builder, a, b));
 
-    let statement = SIPPStatementTarget {
+    SIPPStatementTarget {
         A: original_A,
         B: original_B,
         final_A: A_t[0].clone(),
         final_B: B_t[0].clone(),
         Z: Z_t,
-    };
-    statement
+    }
 }
 
 #[cfg(test)]
