@@ -250,7 +250,7 @@ mod tests {
         data.verify(proof.clone()).unwrap();
         println!("End: proof generation. took {:?}", now.elapsed());
 
-        // assertion
+        // assertion of public inputs
         let pi_u32 = proof
             .public_inputs
             .into_iter()
