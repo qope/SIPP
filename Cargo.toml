@@ -18,10 +18,10 @@ serde = { version = "1.0.160", features = ["derive"] }
 itertools = "0.10.5"
 anyhow = "1.0.71"
 hex = "0.4.3"
-plonky2-bn254-pairing={git="http://github.com/qope/plonky2-bn254-pairing", rev="d87dda4"}
-plonky2_ecdsa={git="https://github.com/qope/plonky2-ecdsa.git"}
-starky = {git="https://github.com/qope/plonky2.git", rev="e366412a"}
-starky-bn254={git="https://github.com/qope/starky-bn254.git", rev="dea3d0"}
-plonky2 = "0.1.2"
-plonky2_u32="0.1.0"
+plonky2 = {git="https://github.com/InternetMaximalism/plonky2", rev="541e127"}
+plonky2_u32={git="https://github.com/InternetMaximalism/plonky2", rev="541e127"}
+plonky2_ecdsa={git="https://github.com/InternetMaximalism/plonky2", rev="541e127"}
+starky = {git="https://github.com/InternetMaximalism/plonky2", rev="541e127"}
+plonky2-bn254={git="https://github.com/qope/plonky2-bn254.git", rev="4838366"}
+starky-bn254={git="http://github.com/qope/starky-bn254", rev="26f7ee2"}
 rayon = "1.7.0"

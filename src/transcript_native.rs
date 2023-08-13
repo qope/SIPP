@@ -9,7 +9,7 @@ use plonky2::{
         poseidon::PoseidonPermutation,
     },
 };
-use plonky2_bn254_pairing::fields::{bn254base::Bn254Base, native::MyFq12};
+use plonky2_bn254::fields::{bn254base::Bn254Base, native::MyFq12};
 
 pub struct Transcript<F: RichField> {
     pub state: HashOut<F>,
@@ -24,7 +24,7 @@ impl<F: RichField> Transcript<F> {
 
     pub fn append(&mut self, message: &[F]) {
         let old_state = self.state;
-        self.state = hash_n_to_hash_no_pad::<F, PoseidonPermutation>(
+        self.state = hash_n_to_hash_no_pad::<F, PoseidonPermutation<F>>(
             &[old_state.elements.to_vec(), message.to_vec()].concat(),
         );
     }
@@ -54,7 +54,7 @@ impl<F: RichField> Transcript<F> {
     }
 
     pub fn get_challenge(&self) -> Fr {
-        let digest = hash_n_to_hash_no_pad::<F, PoseidonPermutation>(&self.state.elements);
+        let digest = hash_n_to_hash_no_pad::<F, PoseidonPermutation<F>>(&self.state.elements);
         let u32_vec = digest
             .elements
             .iter()
