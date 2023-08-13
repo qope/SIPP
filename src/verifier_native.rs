@@ -75,7 +75,7 @@ pub fn sipp_verify_native(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Res
 
 #[cfg(test)]
 mod tests {
-    use crate::prover_native::sipp_prove_native;
+    use crate::prover_native::{inner_product, sipp_prove_native};
 
     use super::*;
     use ark_bn254::{G1Affine, G2Affine};
@@ -91,5 +91,6 @@ mod tests {
         let B = (0..n).map(|_| G2Affine::rand(rng)).collect_vec();
         let proof = sipp_prove_native(&A, &B);
         assert!(sipp_verify_native(&A, &B, &proof).is_ok());
+        assert!(&inner_product(&A, &B) == proof.last().unwrap());
     }
 }

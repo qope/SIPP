@@ -29,6 +29,7 @@ pub fn sipp_verifier_circuit<
     builder: &mut CircuitBuilder<F, D>,
     A_t: &[G1Target<F, D>],
     B_t: &[G2Target<F, D>],
+    Z_t: &Fq12Target<F, D>,
     proof_t: &[Fq12Target<F, D>],
 ) -> SIPPStatementTarget<F, D>
 where
@@ -47,6 +48,7 @@ where
 
     let original_A = A_t.to_vec();
     let original_B = B_t.to_vec();
+    let original_Z = Z_t.clone();
 
     let mut n = A_t.len();
     let mut A_t = A_t.to_vec();
@@ -162,9 +164,10 @@ where
     SIPPStatementTarget {
         A: original_A,
         B: original_B,
+        Z: original_Z,
         final_A: A_t[0].clone(),
         final_B: B_t[0].clone(),
-        Z: Z_t,
+        final_Z: Z_t,
     }
 }
 
@@ -173,15 +176,18 @@ mod tests {
     use std::time::Instant;
 
     use crate::{
-        prover_native::sipp_prove_native, verifier_circuit::sipp_verifier_circuit,
+        prover_native::{inner_product, sipp_prove_native},
+        statements::SIPPStatement,
+        verifier_circuit::sipp_verifier_circuit,
         verifier_native::sipp_verify_native,
     };
 
-    use ark_bn254::{G1Affine, G2Affine};
+    use ark_bn254::{Bn254, G1Affine, G2Affine};
+    use ark_ec::pairing::Pairing;
     use ark_std::UniformRand;
     use itertools::Itertools;
     use plonky2::{
-        field::goldilocks_field::GoldilocksField,
+        field::{goldilocks_field::GoldilocksField, types::PrimeField64},
         iop::witness::PartialWitness,
         plonk::{
             circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
@@ -206,6 +212,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let A = (0..n).map(|_| G1Affine::rand(&mut rng)).collect_vec();
         let B = (0..n).map(|_| G2Affine::rand(&mut rng)).collect_vec();
+        let Z = inner_product(&A, &B);
         let sipp_proof = sipp_prove_native(&A, &B);
         assert!(sipp_verify_native(&A, &B, &sipp_proof).is_ok());
 
@@ -215,11 +222,12 @@ mod tests {
         let mut builder = CircuitBuilder::new(config.clone());
         let A_t = (0..n).map(|_| G1Target::empty(&mut builder)).collect_vec();
         let B_t = (0..n).map(|_| G2Target::empty(&mut builder)).collect_vec();
+        let Z_t = Fq12Target::empty(&mut builder);
         let sipp_proof_t = (0..2 * log_n + 1)
             .map(|_| Fq12Target::empty(&mut builder))
             .collect_vec();
         let sipp_statement_t =
-            sipp_verifier_circuit::<F, C, D>(&mut builder, &A_t, &B_t, &sipp_proof_t);
+            sipp_verifier_circuit::<F, C, D>(&mut builder, &A_t, &B_t, &Z_t, &sipp_proof_t);
         builder.register_public_inputs(&sipp_statement_t.to_vec());
         let data = builder.build::<C>();
         println!("End: circuit build. took {:?}", now.elapsed());
@@ -233,12 +241,40 @@ mod tests {
         B_t.iter()
             .zip(B.iter())
             .for_each(|(b_t, b)| b_t.set_witness(&mut pw, b));
+        Z_t.set_witness(&mut pw, &Z);
         sipp_proof_t
             .iter()
             .zip(sipp_proof.iter())
             .for_each(|(p_t, p)| p_t.set_witness(&mut pw, p));
         let proof = data.prove(pw).unwrap();
-        data.verify(proof).unwrap();
+        data.verify(proof.clone()).unwrap();
         println!("End: proof generation. took {:?}", now.elapsed());
+
+        // assertion
+        let pi_u32 = proof
+            .public_inputs
+            .into_iter()
+            .map(|x| {
+                let x = x.to_canonical_u64();
+                assert!(x < 1 << 32);
+                x as u32
+            })
+            .collect_vec();
+        let sipp_statement = SIPPStatement::from_vec(n, &pi_u32);
+        sipp_statement
+            .A
+            .iter()
+            .zip(A.iter())
+            .for_each(|(r, l)| assert!(r == l));
+        sipp_statement
+            .B
+            .iter()
+            .zip(B.iter())
+            .for_each(|(r, l)| assert!(r == l));
+        assert!(sipp_statement.Z == Z);
+        assert!(
+            Bn254::pairing(sipp_statement.final_A, sipp_statement.final_B).0
+                == sipp_statement.final_Z
+        );
     }
 }

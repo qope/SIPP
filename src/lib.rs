@@ -5,4 +5,3 @@ pub mod transcript_native;
 pub mod utils;
 pub mod verifier_circuit;
 pub mod verifier_native;
-pub mod verifier_witness;
