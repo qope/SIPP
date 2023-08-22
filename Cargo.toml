@@ -22,6 +22,6 @@ plonky2 = {git="https://github.com/InternetMaximalism/plonky2", rev="541e127"}
 plonky2_u32={git="https://github.com/InternetMaximalism/plonky2", rev="541e127"}
 plonky2_ecdsa={git="https://github.com/InternetMaximalism/plonky2", rev="541e127"}
 starky = {git="https://github.com/InternetMaximalism/plonky2", rev="541e127"}
-plonky2-bn254={git="https://github.com/qope/plonky2-bn254.git", rev="4838366"}
-starky-bn254={git="http://github.com/qope/starky-bn254", rev="26f7ee2"}
+plonky2-bn254={git="https://github.com/qope/plonky2-bn254.git", rev="3ffb1c2"}
+starky-bn254={git="http://github.com/qope/starky-bn254", rev="080b2b1"}
 rayon = "1.7.0"
