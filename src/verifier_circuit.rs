@@ -29,7 +29,6 @@ pub fn sipp_verifier_circuit<
     builder: &mut CircuitBuilder<F, D>,
     A_t: &[G1Target<F, D>],
     B_t: &[G2Target<F, D>],
-    Z_t: &Fq12Target<F, D>,
     proof_t: &[Fq12Target<F, D>],
 ) -> SIPPStatementTarget<F, D>
 where
@@ -48,7 +47,6 @@ where
 
     let original_A = A_t.to_vec();
     let original_B = B_t.to_vec();
-    let original_Z = Z_t.clone();
 
     let mut n = A_t.len();
     let mut A_t = A_t.to_vec();
@@ -63,7 +61,8 @@ where
     });
 
     // receive Z
-    let mut Z_t = proof_t.pop().unwrap();
+    let original_Z = proof_t.pop().unwrap();
+    let mut Z_t = original_Z.clone();
     transcript_c.append_fq12(builder, Z_t.clone());
 
     while n > 1 {
@@ -182,8 +181,7 @@ mod tests {
         verifier_native::sipp_verify_native,
     };
 
-    use ark_bn254::{Bn254, G1Affine, G2Affine};
-    use ark_ec::pairing::Pairing;
+    use ark_bn254::{G1Affine, G2Affine};
     use ark_std::UniformRand;
     use itertools::Itertools;
     use plonky2::{
@@ -198,6 +196,7 @@ mod tests {
         curves::{g1curve_target::G1Target, g2curve_target::G2Target},
         fields::fq12_target::Fq12Target,
     };
+    use plonky2_bn254_pairing::pairing::pairing;
 
     #[test]
     #[allow(non_snake_case)]
@@ -222,12 +221,11 @@ mod tests {
         let mut builder = CircuitBuilder::new(config.clone());
         let A_t = (0..n).map(|_| G1Target::empty(&mut builder)).collect_vec();
         let B_t = (0..n).map(|_| G2Target::empty(&mut builder)).collect_vec();
-        let Z_t = Fq12Target::empty(&mut builder);
         let sipp_proof_t = (0..2 * log_n + 1)
             .map(|_| Fq12Target::empty(&mut builder))
             .collect_vec();
         let sipp_statement_t =
-            sipp_verifier_circuit::<F, C, D>(&mut builder, &A_t, &B_t, &Z_t, &sipp_proof_t);
+            sipp_verifier_circuit::<F, C, D>(&mut builder, &A_t, &B_t, &sipp_proof_t);
         builder.register_public_inputs(&sipp_statement_t.to_vec());
         let data = builder.build::<C>();
         println!("End: circuit build. took {:?}", now.elapsed());
@@ -241,7 +239,6 @@ mod tests {
         B_t.iter()
             .zip(B.iter())
             .for_each(|(b_t, b)| b_t.set_witness(&mut pw, b));
-        Z_t.set_witness(&mut pw, &Z);
         sipp_proof_t
             .iter()
             .zip(sipp_proof.iter())
@@ -272,9 +269,6 @@ mod tests {
             .zip(B.iter())
             .for_each(|(r, l)| assert!(r == l));
         assert!(sipp_statement.Z == Z);
-        assert!(
-            Bn254::pairing(sipp_statement.final_A, sipp_statement.final_B).0
-                == sipp_statement.final_Z
-        );
+        assert!(pairing(sipp_statement.final_A, sipp_statement.final_B) == sipp_statement.final_Z);
     }
 }

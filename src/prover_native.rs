@@ -1,11 +1,11 @@
 use std::ops::Mul;
 
-use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
-use ark_ec::pairing::Pairing;
+use ark_bn254::{Fq12, G1Affine, G2Affine};
 use ark_ff::fields::Field;
 use itertools::Itertools;
 use num_traits::One;
 use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2_bn254_pairing::pairing::pairing;
 
 use crate::transcript_native::Transcript;
 
@@ -17,7 +17,7 @@ pub fn inner_product(A: &[G1Affine], B: &[G2Affine]) -> Fq12 {
     let r_vec = A
         .iter()
         .zip(B.iter())
-        .map(|(a, b)| Bn254::pairing(*a, *b).0)
+        .map(|(a, b)| pairing(*a, *b))
         .collect_vec();
     r_vec.iter().fold(Fq12::one(), |acc, x| acc * x)
 }
