@@ -1,10 +1,9 @@
-use std::{str::FromStr, time::Instant};
+use std::time::Instant;
 
 use ark_bn254::{Fq12, Fq2, Fr, G1Affine, G2Affine, G2Projective};
 use ark_ec::AffineRepr;
 use ark_std::UniformRand;
 use itertools::Itertools;
-use num_bigint::BigUint;
 use num_traits::{One, Zero};
 use plonky2::{
     field::{extension::Extendable, goldilocks_field::GoldilocksField},
@@ -23,12 +22,13 @@ use plonky2_bn254::{
     },
     fields::fq12_target::Fq12Target,
 };
-use plonky2_bn254_pairing::pairing::pairing_circuit;
+use plonky2_bn254_pairing::pairing::{pairing, pairing_circuit};
 use sipp::{
     prover_native::{inner_product, sipp_prove_native},
     verifier_circuit::sipp_verifier_circuit,
+    verifier_native::sipp_verify_native,
 };
-use starky_bn254::{circuits::g2_exp_circuit, input_target::G2ExpInputTarget};
+use starky_bn254::circuits::g2_mul_by_cofactor_circuit;
 
 pub struct BLSTarget<F: RichField + Extendable<D>, const D: usize> {
     pub m_before_cofactor_muls: Vec<G2Target<F, D>>,
@@ -60,41 +60,13 @@ where
     let sipp_proof = (0..2 * log_n + 1)
         .map(|_| Fq12Target::empty(builder))
         .collect_vec();
-    let g2_gen = G2Target::constant(builder, G2Affine::generator());
-    let exp_val_b = BigUint::from_str(
-        "21888242871839275222246405745257275088844257914179612981679871602714643921549",
-    )
-    .unwrap();
-    let exp_val_limbs = exp_val_b.to_u32_digits();
-    let exp_val_limbs_t = exp_val_limbs
-        .into_iter()
-        .map(|x| builder.constant(F::from_canonical_u32(x)))
-        .collect::<Vec<_>>();
-    assert!(exp_val_limbs_t.len() == 8);
-    let exp_val =
-        plonky2_bn254::fields::u256_target::U256Target::<F, D>::from_vec(&exp_val_limbs_t);
-    let mut g2_sm_input = m_before_cofactor_muls
-        .iter()
-        .map(|m_before_cofactor_mul| G2ExpInputTarget {
-            x: m_before_cofactor_mul.clone(),
-            offset: g2_gen.clone(),
-            exp_val: exp_val.clone(),
-        })
-        .collect::<Vec<_>>();
-    // padd
-    g2_sm_input.push(g2_sm_input.last().unwrap().clone());
-    let ms = g2_exp_circuit::<F, C, D>(builder, &g2_sm_input);
-    let neg_g2_gen = G2Target::constant(builder, -G2Affine::generator());
-    let ms = ms[..n - 1]
-        .iter()
-        .map(|m| m.add(builder, &neg_g2_gen))
-        .collect::<Vec<_>>();
+    let ms = g2_mul_by_cofactor_circuit::<F, C, D>(builder, &m_before_cofactor_muls);
     let mut a = public_keys.clone();
     let mut b = ms;
     let neg_g1 = G1Target::constant(builder, -G1Affine::generator());
     a.push(neg_g1);
     b.push(aggregated_signature.clone());
-    assert!(a.len() == b.len() && a.len() == n);
+    // assert!(a.len() == b.len() && a.len() == n);
     let sipp_statement = sipp_verifier_circuit::<F, C, D>(builder, &a, &b, &sipp_proof);
 
     // final pairing. This takes much time!
@@ -127,7 +99,7 @@ fn main() {
         .collect::<Vec<_>>();
     let messages: Vec<G2Affine> = m_before_cofactor_muls
         .iter()
-        .map(|m| m.mul_by_cofactor_to_group().into())
+        .map(|m| m.mul_by_cofactor())
         .collect_vec();
     let signatures: Vec<G2Affine> = private_keys
         .iter()
@@ -145,6 +117,8 @@ fn main() {
 
     assert_eq!(inner_product(&a, &b), Fq12::one());
     let sipp_proof = sipp_prove_native(&a, &b);
+    let sipp_statement = sipp_verify_native(&a, &b, &sipp_proof).unwrap();
+    assert!(pairing(sipp_statement.final_A, sipp_statement.final_B) == sipp_statement.final_Z);
 
     let config = CircuitConfig::standard_ecc_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);

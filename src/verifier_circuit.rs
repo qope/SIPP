@@ -15,10 +15,7 @@ use starky_bn254::{
     input_target::{Fq12ExpInputTarget, G1ExpInputTarget, G2ExpInputTarget},
 };
 
-use crate::{
-    statements::SIPPStatementTarget, transcript_circuit::TranscriptCircuit,
-    utils::next_power_of_two,
-};
+use crate::{statements::SIPPStatementTarget, transcript_circuit::TranscriptCircuit};
 
 #[allow(non_snake_case)]
 pub fn sipp_verifier_circuit<
@@ -130,20 +127,6 @@ where
         n = n / 2;
     }
 
-    // padd inputs because g1/g2/fq12 exp circuit requires the length of inputs to be a power of 2
-    g1exp_inputs_t.push(g1exp_inputs_t.last().unwrap().clone());
-    g1exp_output_t.push(g1exp_output_t.last().unwrap().clone());
-    g2exp_inputs_t.push(g2exp_inputs_t.last().unwrap().clone());
-    g2exp_output_t.push(g2exp_output_t.last().unwrap().clone());
-    let next_power_of_two = next_power_of_two(fq12exp_inputs_t.len() as u32) as usize;
-    fq12exp_inputs_t.extend(vec![
-        fq12exp_inputs_t.last().unwrap().clone();
-        next_power_of_two - fq12exp_inputs_t.len()
-    ]);
-    fq12exp_output_t.extend(vec![
-        fq12exp_output_t.last().unwrap().clone();
-        next_power_of_two - fq12exp_output_t.len()
-    ]);
     let contr_g1exp_outputs_t = g1_exp_circuit::<F, C, D>(builder, &g1exp_inputs_t);
     let contr_g2exp_outputs_t = g2_exp_circuit::<F, C, D>(builder, &g2exp_inputs_t);
     let contr_fq12exp_outputs_t = fq12_exp_circuit::<F, C, D>(builder, &fq12exp_inputs_t);
@@ -205,15 +188,19 @@ mod tests {
         type C = PoseidonGoldilocksConfig;
         const D: usize = 2;
 
-        let log_n = 7;
+        let log_n = 8;
         let n = 1 << log_n;
         println!("Aggregating {} pairings into 1", n);
         let mut rng = rand::thread_rng();
         let A = (0..n).map(|_| G1Affine::rand(&mut rng)).collect_vec();
         let B = (0..n).map(|_| G2Affine::rand(&mut rng)).collect_vec();
-        let Z = inner_product(&A, &B);
         let sipp_proof = sipp_prove_native(&A, &B);
-        assert!(sipp_verify_native(&A, &B, &sipp_proof).is_ok());
+        let sipp_statement = sipp_verify_native(&A, &B, &sipp_proof).unwrap();
+        assert_eq!(inner_product(&A, &B), sipp_statement.Z);
+        assert_eq!(
+            pairing(sipp_statement.final_A, sipp_statement.final_B),
+            sipp_statement.final_Z
+        );
 
         println!("Start: cirucit build");
         let now = Instant::now();
@@ -243,6 +230,18 @@ mod tests {
             .iter()
             .zip(sipp_proof.iter())
             .for_each(|(p_t, p)| p_t.set_witness(&mut pw, p));
+
+        // The witness asignments below are not mandatory, just for assertion.
+        sipp_statement_t.Z.set_witness(&mut pw, &sipp_statement.Z);
+        sipp_statement_t
+            .final_A
+            .set_witness(&mut pw, &sipp_statement.final_A);
+        sipp_statement_t
+            .final_B
+            .set_witness(&mut pw, &sipp_statement.final_B);
+        sipp_statement_t
+            .final_Z
+            .set_witness(&mut pw, &sipp_statement.final_Z);
         let proof = data.prove(pw).unwrap();
         data.verify(proof.clone()).unwrap();
         println!("End: proof generation. took {:?}", now.elapsed());
@@ -257,18 +256,7 @@ mod tests {
                 x as u32
             })
             .collect_vec();
-        let sipp_statement = SIPPStatement::from_vec(n, &pi_u32);
-        sipp_statement
-            .A
-            .iter()
-            .zip(A.iter())
-            .for_each(|(r, l)| assert!(r == l));
-        sipp_statement
-            .B
-            .iter()
-            .zip(B.iter())
-            .for_each(|(r, l)| assert!(r == l));
-        assert!(sipp_statement.Z == Z);
-        assert!(pairing(sipp_statement.final_A, sipp_statement.final_B) == sipp_statement.final_Z);
+        let recovered_sipp_statement = SIPPStatement::from_vec(n, &pi_u32);
+        assert_eq!(sipp_statement, recovered_sipp_statement);
     }
 }

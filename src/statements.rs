@@ -77,7 +77,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SIPPStatementTarget<F, D> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SIPPStatement {
     pub A: Vec<G1Affine>,
     pub B: Vec<G2Affine>,
