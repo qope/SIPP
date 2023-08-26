@@ -98,8 +98,8 @@ where
     let sipp_statement = sipp_verifier_circuit::<F, C, D>(builder, &a, &b, &sipp_proof);
 
     // final pairing. This takes much time!
-    let r = pairing_circuit::<F, C, D>(builder, sipp_statement.final_A, sipp_statement.final_B);
-    Fq12Target::connect(builder, &r, &sipp_statement.final_Z);
+    let z = pairing_circuit::<F, C, D>(builder, sipp_statement.final_A, sipp_statement.final_B);
+    Fq12Target::connect(builder, &z, &sipp_statement.final_Z);
 
     BLSTarget {
         m_before_cofactor_muls,
