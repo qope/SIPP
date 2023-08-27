@@ -164,9 +164,11 @@ mod tests {
         verifier_native::sipp_verify_native,
     };
 
-    use ark_bn254::{G1Affine, G2Affine};
+    use ark_bn254::{Fq2, Fr, G1Affine, G2Affine, G2Projective};
+    use ark_ec::AffineRepr;
     use ark_std::UniformRand;
     use itertools::Itertools;
+    use num_traits::{PrimInt, Zero};
     use plonky2::{
         field::{goldilocks_field::GoldilocksField, types::PrimeField64},
         iop::witness::PartialWitness,
@@ -176,7 +178,10 @@ mod tests {
         },
     };
     use plonky2_bn254::{
-        curves::{g1curve_target::G1Target, g2curve_target::G2Target},
+        curves::{
+            g1curve_target::G1Target, g2curve_target::G2Target,
+            map_to_g2::map_to_g2_without_cofactor_mul,
+        },
         fields::fq12_target::Fq12Target,
     };
     use plonky2_bn254_pairing::pairing::pairing;
@@ -258,5 +263,94 @@ mod tests {
             .collect_vec();
         let recovered_sipp_statement = SIPPStatement::from_vec(n, &pi_u32);
         assert_eq!(sipp_statement, recovered_sipp_statement);
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_bls_circuit() {
+        type F = GoldilocksField;
+        type C = PoseidonGoldilocksConfig;
+        const D: usize = 2;
+
+        let n = 128;
+        let mut rng = rand::thread_rng();
+        let private_keys: Vec<Fr> = (0..n - 1).map(|_| Fr::rand(&mut rng)).collect_vec();
+        let public_keys: Vec<G1Affine> = private_keys
+            .iter()
+            .map(|pk| (G1Affine::generator() * pk).into())
+            .collect_vec();
+        let m_before_cofactor_muls = (0..n - 1)
+            .map(|_| map_to_g2_without_cofactor_mul(Fq2::rand(&mut rng)))
+            .collect::<Vec<_>>();
+        let ms: Vec<G2Affine> = m_before_cofactor_muls
+            .iter()
+            .map(|m| m.mul_by_cofactor())
+            .collect_vec();
+        let ms = (0..n - 1).map(|_| G2Affine::rand(&mut rng)).collect_vec();
+        let signatures: Vec<G2Affine> = private_keys
+            .iter()
+            .zip(ms.iter())
+            .map(|(&sk, &m)| (m * sk).into())
+            .collect_vec();
+        let aggregated_signature: G2Affine = signatures
+            .iter()
+            .fold(G2Projective::zero(), |acc, &s| acc + s)
+            .into();
+        let mut A = public_keys.clone();
+        let mut B = ms.clone();
+        A.push(-G1Affine::generator());
+        B.push(aggregated_signature);
+        let sipp_proof = sipp_prove_native(&A, &B);
+        let sipp_statement = sipp_verify_native(&A, &B, &sipp_proof).unwrap();
+        assert_eq!(inner_product(&A, &B), sipp_statement.Z);
+        assert_eq!(
+            pairing(sipp_statement.final_A, sipp_statement.final_B),
+            sipp_statement.final_Z
+        );
+
+        println!("Start: cirucit build");
+        let now = Instant::now();
+        let config = CircuitConfig::standard_ecc_config();
+        let mut builder = CircuitBuilder::new(config.clone());
+        let A_t = (0..n).map(|_| G1Target::empty(&mut builder)).collect_vec();
+        let B_t = (0..n).map(|_| G2Target::empty(&mut builder)).collect_vec();
+        let log_n = n.leading_zeros();
+        let sipp_proof_t = (0..2 * log_n + 1)
+            .map(|_| Fq12Target::empty(&mut builder))
+            .collect_vec();
+        let sipp_statement_t =
+            sipp_verifier_circuit::<F, C, D>(&mut builder, &A_t, &B_t, &sipp_proof_t);
+        builder.register_public_inputs(&sipp_statement_t.to_vec());
+        let data = builder.build::<C>();
+        println!("End: circuit build. took {:?}", now.elapsed());
+
+        println!("Start: proof generation");
+        let now = Instant::now();
+        let mut pw = PartialWitness::new();
+        A_t.iter()
+            .zip(A.iter())
+            .for_each(|(a_t, a)| a_t.set_witness(&mut pw, a));
+        B_t.iter()
+            .zip(B.iter())
+            .for_each(|(b_t, b)| b_t.set_witness(&mut pw, b));
+        sipp_proof_t
+            .iter()
+            .zip(sipp_proof.iter())
+            .for_each(|(p_t, p)| p_t.set_witness(&mut pw, p));
+
+        // The witness asignments below are not mandatory, just for assertion.
+        // sipp_statement_t.Z.set_witness(&mut pw, &sipp_statement.Z);
+        // sipp_statement_t
+        //     .final_A
+        //     .set_witness(&mut pw, &sipp_statement.final_A);
+        // sipp_statement_t
+        //     .final_B
+        //     .set_witness(&mut pw, &sipp_statement.final_B);
+        // sipp_statement_t
+        //     .final_Z
+        //     .set_witness(&mut pw, &sipp_statement.final_Z);
+        let proof = data.prove(pw).unwrap();
+        data.verify(proof.clone()).unwrap();
+        println!("End: proof generation. took {:?}", now.elapsed());
     }
 }

@@ -67,11 +67,11 @@ impl<F: RichField> Transcript<F> {
 
 fn from_fq_to_f<F: RichField>(x: Fq) -> Vec<F> {
     let x: Bn254Base = x.into();
-    let b = x.to_canonical_biguint();
-    let f_vec = b
-        .to_u32_digits()
+    let mut limbs = x.to_canonical_biguint().to_u32_digits();
+    limbs.resize(8, 0);
+    let f = limbs
         .iter()
         .map(|&x| F::from_canonical_u32(x))
         .collect_vec();
-    f_vec
+    f
 }
