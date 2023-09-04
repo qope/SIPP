@@ -28,9 +28,7 @@ use sipp::{
     verifier_circuit::sipp_verifier_circuit,
     verifier_native::sipp_verify_native,
 };
-use starky_bn254::curves::g2::{
-    batch_map_to_g2::batch_map_to_g2_circuit, circuit::g2_mul_by_cofactor_circuit,
-};
+use starky_bn254::curves::g2::batch_map_to_g2::batch_map_to_g2_circuit;
 
 pub struct BLSTarget<F: RichField + Extendable<D>, const D: usize> {
     pub public_keys: Vec<G1Target<F, D>>,
@@ -62,7 +60,10 @@ where
     let messages = (0..n - 1)
         .map(|_| Fq2Target::<F, D>::empty(builder))
         .collect::<Vec<_>>();
+
+    // This is heavy process
     let ms = batch_map_to_g2_circuit::<F, C, D>(builder, &messages);
+
     let mut a = public_keys.clone();
     let mut b = ms;
     let neg_g1 = G1Target::constant(builder, -G1Affine::generator());
@@ -71,7 +72,7 @@ where
     // assert!(a.len() == b.len() && a.len() == n);
     let sipp_statement = sipp_verifier_circuit::<F, C, D>(builder, &a, &b, &sipp_proof);
 
-    // final pairing. This takes much time!
+    // final pairing. This also takes much time!
     let z = pairing_circuit::<F, C, D>(builder, sipp_statement.final_A, sipp_statement.final_B);
     Fq12Target::connect(builder, &z, &sipp_statement.final_Z);
 
