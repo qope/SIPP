@@ -11,8 +11,11 @@ use plonky2_bn254::{
     fields::{fq12_target::Fq12Target, u256_target::U256Target},
 };
 use starky_bn254::{
-    circuits::{fq12_exp_circuit, g1_exp_circuit, g2_exp_circuit},
-    input_target::{Fq12ExpInputTarget, G1ExpInputTarget, G2ExpInputTarget},
+    curves::{
+        g1::circuit::{g1_exp_circuit, G1ExpInputTarget},
+        g2::circuit::{g2_exp_circuit, G2ExpInputTarget},
+    },
+    fields::fq12::circuit::{fq12_exp_circuit, Fq12ExpInputTarget},
 };
 
 use crate::{statements::SIPPStatementTarget, transcript_circuit::TranscriptCircuit};

@@ -9,7 +9,7 @@ use plonky2_bn254::{
     curves::{g1curve_target::G1Target, g2curve_target::G2Target},
     fields::{fq12_target::Fq12Target, native::MyFq12},
 };
-use starky_bn254::utils::u32_digits_to_biguint;
+use starky_bn254::utils::utils::u32_digits_to_biguint;
 
 pub struct SIPPStatementTarget<F: RichField + Extendable<D>, const D: usize> {
     pub A: Vec<G1Target<F, D>>,

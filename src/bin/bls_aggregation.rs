@@ -20,7 +20,7 @@ use plonky2_bn254::{
         g1curve_target::G1Target, g2curve_target::G2Target,
         map_to_g2::map_to_g2_without_cofactor_mul,
     },
-    fields::fq12_target::Fq12Target,
+    fields::{fq12_target::Fq12Target, fq2_target::Fq2Target},
 };
 use plonky2_bn254_pairing::pairing::{pairing, pairing_circuit};
 use sipp::{
@@ -28,11 +28,13 @@ use sipp::{
     verifier_circuit::sipp_verifier_circuit,
     verifier_native::sipp_verify_native,
 };
-use starky_bn254::circuits::g2_mul_by_cofactor_circuit;
+use starky_bn254::curves::g2::{
+    batch_map_to_g2::batch_map_to_g2_circuit, circuit::g2_mul_by_cofactor_circuit,
+};
 
 pub struct BLSTarget<F: RichField + Extendable<D>, const D: usize> {
-    pub m_before_cofactor_muls: Vec<G2Target<F, D>>,
     pub public_keys: Vec<G1Target<F, D>>,
+    pub messages: Vec<Fq2Target<F, D>>,
     pub aggregated_signature: G2Target<F, D>,
     pub sipp_proof: Vec<Fq12Target<F, D>>,
 }
@@ -50,9 +52,6 @@ where
 {
     assert!(n.is_power_of_two());
     let log_n = n.trailing_zeros();
-    let m_before_cofactor_muls = (0..n - 1)
-        .map(|_| G2Target::empty(builder))
-        .collect::<Vec<_>>();
     let public_keys = (0..n - 1)
         .map(|_| G1Target::empty(builder))
         .collect::<Vec<_>>();
@@ -60,7 +59,10 @@ where
     let sipp_proof = (0..2 * log_n + 1)
         .map(|_| Fq12Target::empty(builder))
         .collect_vec();
-    let ms = g2_mul_by_cofactor_circuit::<F, C, D>(builder, &m_before_cofactor_muls);
+    let messages = (0..n - 1)
+        .map(|_| Fq2Target::<F, D>::empty(builder))
+        .collect::<Vec<_>>();
+    let ms = batch_map_to_g2_circuit::<F, C, D>(builder, &messages);
     let mut a = public_keys.clone();
     let mut b = ms;
     let neg_g1 = G1Target::constant(builder, -G1Affine::generator());
@@ -74,8 +76,8 @@ where
     Fq12Target::connect(builder, &z, &sipp_statement.final_Z);
 
     BLSTarget {
-        m_before_cofactor_muls,
         public_keys,
+        messages,
         aggregated_signature,
         sipp_proof,
     }
@@ -94,16 +96,14 @@ fn main() {
         .iter()
         .map(|pk| (G1Affine::generator() * pk).into())
         .collect_vec();
-    let m_before_cofactor_muls = (0..n - 1)
-        .map(|_| map_to_g2_without_cofactor_mul(Fq2::rand(&mut rng)))
-        .collect::<Vec<_>>();
-    let messages: Vec<G2Affine> = m_before_cofactor_muls
+    let messages = (0..n - 1).map(|_| Fq2::rand(&mut rng)).collect::<Vec<_>>();
+    let ms: Vec<G2Affine> = messages
         .iter()
-        .map(|m| m.mul_by_cofactor())
+        .map(|u| map_to_g2_without_cofactor_mul(*u).mul_by_cofactor())
         .collect_vec();
     let signatures: Vec<G2Affine> = private_keys
         .iter()
-        .zip(messages.iter())
+        .zip(ms.iter())
         .map(|(&sk, &m)| (m * sk).into())
         .collect_vec();
     let aggregated_signature: G2Affine = signatures
@@ -111,7 +111,7 @@ fn main() {
         .fold(G2Projective::zero(), |acc, &s| acc + s)
         .into();
     let mut a = public_keys.clone();
-    let mut b = messages.clone();
+    let mut b = ms.clone();
     a.push(-G1Affine::generator());
     b.push(aggregated_signature);
 
@@ -134,9 +134,9 @@ fn main() {
         .aggregated_signature
         .set_witness(&mut pw, &aggregated_signature);
     bls_target
-        .m_before_cofactor_muls
+        .messages
         .iter()
-        .zip_eq(m_before_cofactor_muls.iter())
+        .zip_eq(messages.iter())
         .for_each(|(t, w)| {
             t.set_witness(&mut pw, w);
         });
