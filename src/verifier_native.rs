@@ -1,18 +1,21 @@
-use crate::transcript_native::Transcript;
+use crate::{statements::SIPPStatement, transcript_native::Transcript};
 use anyhow::Result;
-use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
-use ark_ec::pairing::Pairing;
+use ark_bn254::{Fq12, G1Affine, G2Affine};
 use ark_ff::Field;
 use itertools::Itertools;
 use num_bigint::BigUint;
 use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2_bn254_pairing::pairing::pairing;
 use std::ops::Mul;
 
 type F = GoldilocksField;
 
 #[allow(non_snake_case)]
-pub fn sipp_verify_native(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<()> {
+pub fn sipp_verify_native(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Result<SIPPStatement> {
     let mut n = A.len();
+    let original_A = A.to_vec();
+    let original_B = B.to_vec();
+
     let mut A = A.to_vec();
     let mut B = B.to_vec();
     let mut transcript = Transcript::<F>::new();
@@ -25,7 +28,8 @@ pub fn sipp_verify_native(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Res
     });
 
     // receive Z
-    let mut Z = proof.pop().unwrap();
+    let original_Z = proof.pop().unwrap();
+    let mut Z = original_Z.clone();
     transcript.append_fq12(Z);
 
     while n > 1 {
@@ -63,11 +67,18 @@ pub fn sipp_verify_native(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Res
         n = n / 2;
     }
 
-    // check if Z == e(A, B)
-    let e = Bn254::pairing(A[0], B[0]).0;
+    let statement = SIPPStatement {
+        A: original_A,
+        B: original_B,
+        Z: original_Z,
+        final_A: A[0],
+        final_B: B[0],
+        final_Z: Z,
+    };
 
-    if Z == e {
-        Ok(())
+    // check if Z == e(A, B)
+    if pairing(statement.final_A, statement.final_B) == statement.final_Z {
+        Ok(statement)
     } else {
         Err(anyhow::anyhow!("Verification failed"))
     }
@@ -75,7 +86,7 @@ pub fn sipp_verify_native(A: &[G1Affine], B: &[G2Affine], proof: &[Fq12]) -> Res
 
 #[cfg(test)]
 mod tests {
-    use crate::prover_native::sipp_prove_native;
+    use crate::prover_native::{inner_product, sipp_prove_native};
 
     use super::*;
     use ark_bn254::{G1Affine, G2Affine};
@@ -91,5 +102,6 @@ mod tests {
         let B = (0..n).map(|_| G2Affine::rand(rng)).collect_vec();
         let proof = sipp_prove_native(&A, &B);
         assert!(sipp_verify_native(&A, &B, &proof).is_ok());
+        assert!(&inner_product(&A, &B) == proof.last().unwrap());
     }
 }

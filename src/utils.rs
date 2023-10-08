@@ -25,3 +25,11 @@ where
     builder.verify_proof::<C>(&proof_t, &vt, &inner_data.common);
     proof_t
 }
+
+pub fn next_power_of_two(n: u32) -> u32 {
+    if n.is_power_of_two() {
+        n
+    } else {
+        1 << (n as f32).log2().ceil() as u32
+    }
+}

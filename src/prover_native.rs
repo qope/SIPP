@@ -1,11 +1,11 @@
 use std::ops::Mul;
 
-use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
-use ark_ec::pairing::Pairing;
+use ark_bn254::{Fq12, G1Affine, G2Affine};
 use ark_ff::fields::Field;
 use itertools::Itertools;
 use num_traits::One;
 use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2_bn254_pairing::pairing::pairing;
 
 use crate::transcript_native::Transcript;
 
@@ -17,7 +17,7 @@ pub fn inner_product(A: &[G1Affine], B: &[G2Affine]) -> Fq12 {
     let r_vec = A
         .iter()
         .zip(B.iter())
-        .map(|(a, b)| Bn254::pairing(*a, *b).0)
+        .map(|(a, b)| pairing(*a, *b))
         .collect_vec();
     r_vec.iter().fold(Fq12::one(), |acc, x| acc * x)
 }
@@ -77,22 +77,4 @@ pub fn sipp_prove_native(A: &[G1Affine], B: &[G2Affine]) -> Vec<Fq12> {
     // reverse the message because the verifier reads the message in reverse order
     proof.reverse();
     proof
-}
-
-#[cfg(test)]
-mod tests {
-    use ark_bn254::{Bn254, G1Affine, G2Affine};
-    use ark_ec::pairing::Pairing;
-    use ark_std::UniformRand;
-
-    #[test]
-    fn test_pairing_bilinearity() {
-        let rng = &mut ark_std::test_rng();
-        let a = G1Affine::rand(rng);
-        let b = G1Affine::rand(rng);
-        let c = G2Affine::rand(rng);
-        let res1 = Bn254::pairing(a + b, c).0;
-        let res2 = Bn254::pairing(a, c).0 * Bn254::pairing(b, c).0;
-        assert_eq!(res1, res2);
-    }
 }

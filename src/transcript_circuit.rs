@@ -10,7 +10,7 @@ use plonky2::{
     iop::target::Target,
     plonk::circuit_builder::CircuitBuilder,
 };
-use plonky2_bn254_pairing::{
+use plonky2_bn254::{
     curves::{g1curve_target::G1Target, g2curve_target::G2Target},
     fields::{bn254scalar::Bn254Scalar, fq12_target::Fq12Target, fr_target::FrTarget},
 };
@@ -39,38 +39,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TranscriptCircuit<F, D> {
     }
 
     pub fn append_fq12(&mut self, builder: &mut CircuitBuilder<F, D>, x: Fq12Target<F, D>) {
-        let f_vec: Vec<Target> = x
-            .coeffs
-            .iter()
-            .cloned()
-            .flat_map(|x| x.target().value.limbs)
-            .map(|x| x.0)
-            .collect_vec();
-        self.append(builder, &f_vec);
+        self.append(builder, &x.to_vec());
     }
 
     pub fn append_g1(&mut self, builder: &mut CircuitBuilder<F, D>, p: G1Target<F, D>) {
-        let f_vec =
-            p.x.limbs()
-                .iter()
-                .chain(p.y.limbs().iter())
-                .cloned()
-                .map(|x| x.0)
-                .collect_vec();
-        self.append(builder, &f_vec);
+        self.append(builder, &p.to_vec());
     }
 
     pub fn append_g2(&mut self, builder: &mut CircuitBuilder<F, D>, p: G2Target<F, D>) {
-        let f_vec = p.x.coeffs[0]
-            .limbs()
-            .iter()
-            .chain(p.x.coeffs[1].limbs().iter())
-            .chain(p.y.coeffs[0].limbs().iter())
-            .chain(p.y.coeffs[1].limbs().iter())
-            .cloned()
-            .map(|x| x.0)
-            .collect_vec();
-        self.append(builder, &f_vec);
+        self.append(builder, &p.to_vec());
     }
 
     pub fn get_challenge(&self, builder: &mut CircuitBuilder<F, D>) -> FrTarget<F, D> {
@@ -113,7 +90,7 @@ mod test {
             config::PoseidonGoldilocksConfig,
         },
     };
-    use plonky2_bn254_pairing::{
+    use plonky2_bn254::{
         curves::{g1curve_target::G1Target, g2curve_target::G2Target},
         fields::{fq12_target::Fq12Target, fr_target::FrTarget},
     };
@@ -127,7 +104,7 @@ mod test {
 
     #[test]
     fn test_split_hashout_target() {
-        let z = hash_n_to_hash_no_pad::<F, PoseidonPermutation>(&[F::ONE]);
+        let z = hash_n_to_hash_no_pad::<F, PoseidonPermutation<F>>(&[F::ONE]);
 
         let config = CircuitConfig::standard_ecc_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
@@ -171,7 +148,7 @@ mod test {
         };
         let c_t = transcript_c.get_challenge(&mut builder);
 
-        let zero_hash = hash_n_to_hash_no_pad::<F, PoseidonPermutation>(&vec![F::ZERO]);
+        let zero_hash = hash_n_to_hash_no_pad::<F, PoseidonPermutation<F>>(&vec![F::ZERO]);
         let transcript = Transcript { state: zero_hash };
         let c = transcript.get_challenge();
 
